@@ -27,6 +27,20 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-        ];
+        ];    
+    }
+
+    protected $fillable = [
+    'name',
+    'email',
+    'password',
+    'role_id',
+    'super',
+    'is_active',
+];
+
+
+    public function roles(){
+        return $this->belongsTo(Roles::class);
     }
 }
