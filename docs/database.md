@@ -1,0 +1,129 @@
+# InfraTrack --- Database
+
+## 1. Database
+
+**Database:** PostgreSQL\
+**Name:** `infratrack`
+
+Laravel migrations are the source of truth for database structure.
+
+## 2. Tables
+
+### `roles`
+
+  Field           Key      Purpose
+  --------------- -------- ------------------
+  `id`            PK       Role ID
+  `name`          UNIQUE   Role name
+  `description`            Role description
+  `created_at`             
+  `updated_at`             
+
+Initial roles: - Admin - Field Inspector - Contractor
+
+### `users`
+
+  Field              Key               Purpose
+  ------------------ ----------------- ------------------------
+  `id`               PK                User ID
+  `name`                               Full name
+  `email`            UNIQUE            Login email
+  `password`                           Hashed password
+  `role_id`          FK → `roles.id`   User role
+  `super`                              Super privilege
+  `is_active`                          Account status
+  `remember_token`                     Laravel authentication
+  `created_at`                         
+  `updated_at`                         
+
+`super` belongs to the user, not the role.
+
+### `issues`
+
+Stores reported road issues.
+
+Important fields: - `id` --- PK - `reported_by` --- FK → `users.id` -
+`photo_path` - `latitude` - `longitude` - `address` - `severity` -
+`status` - `reported_at` - timestamps
+
+### `assignments`
+
+Stores maintenance assignments.
+
+Important fields: - `id` --- PK - `assigned_by` --- FK → `users.id` -
+`contractor_id` --- FK → `users.id` - `title` - `description` -
+`assigned_at` - timestamps
+
+### `issue_assignment`
+
+Stores issue-assignment relationships and reassignment history.
+
+Important fields: - `id` --- PK - `issue_id` --- FK → `issues.id` -
+`assignment_id` --- FK → `assignments.id` - `assigned_at` -
+`unassigned_at` - timestamps
+
+Only an assignment with `unassigned_at IS NULL` is current.
+
+When an issue is reassigned, the previous assignment receives an
+`unassigned_at` value. Backend queries must only expose current
+assignments to contractors.
+
+### `issue_history`
+
+Stores issue-specific history.
+
+Important fields: - `id` --- PK - `issue_id` --- FK → `issues.id` -
+`changed_by` --- FK → `users.id` - `old_status` - `new_status` -
+`message` --- nullable - `changed_at`
+
+A status update may contain an optional message. This is not a chat
+system.
+
+### `ai_analyses`
+
+Reserved for AI processing.
+
+Important fields: - `id` --- PK - `issue_id` --- FK → `issues.id` -
+`predicted_severity` - `confidence` - `model_version` - `status` -
+`analyzed_at` - timestamps
+
+### `audit_logs`
+
+Stores important system-wide administrative actions.
+
+Important fields: - `id` --- PK - `user_id` --- FK → `users.id` -
+`action` - `entity_type` - `entity_id` - `description` or relevant
+data - `created_at`
+
+Examples: - User created - User deactivated/reactivated - Role changed -
+Super privilege changed
+
+Audit logs are internal records and are not currently displayed as a
+normal UI feature.
+
+## 3. Relationships
+
+``` text
+roles 1 ─── * users
+
+users 1 ─── * issues
+users 1 ─── * assignments
+users 1 ─── * issue_history
+users 1 ─── * audit_logs
+
+issues 1 ─── * issue_assignment
+assignments 1 ─── * issue_assignment
+
+issues 1 ─── * issue_history
+issues 1 ─── * ai_analyses
+```
+
+## 4. Rules
+
+-   An issue has only one current assignment.
+-   Reassignment preserves previous assignment history.
+-   Contractors only access issues through current assignments.
+-   Coordinates are authoritative for location.
+-   Address is derived through reverse geocoding.
+-   Historical records remain when a user is deactivated.
+-   Database changes use Laravel migrations.
