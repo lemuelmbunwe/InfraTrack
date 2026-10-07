@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AuthShell from '../components/AuthShell.vue'
 import LoginForm from '../components/LoginForm.vue'
 import { AuthRequestError } from '../services/auth'
+import { homeRouteName } from '../router/roles'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -43,7 +44,7 @@ async function submitCredentials({ email, password }) {
     const redirect = route.query.redirect
     const destination = typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')
       ? redirect
-      : { name: 'session' }
+      : { name: homeRouteName(auth.currentUser.value.role) }
 
     await router.replace(destination)
   } catch (error) {

@@ -63,3 +63,24 @@ export async function fetchCurrentUser() {
 
   return payload.user
 }
+
+export async function createUser(userData) {
+  const token = getAccessToken()
+
+  const response = await fetch(`${apiBaseUrl}/v1/users`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(userData),
+  })
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new AuthRequestError(payload.message || 'Unable to create account.', response.status, payload)
+  }
+
+  return payload.user
+}

@@ -100,3 +100,39 @@ Common cases:
 -   Do not expose credentials or internal errors.
 -   Keep response structures consistent.
 -   Do not allow the frontend to bypass business rules.
+
+## 11. User Creation and Role Identity
+
+Authenticated users are represented with safe identity fields:
+
+``` json
+{
+  "id": 12,
+  "name": "Jordan Lee",
+  "email": "jordan@example.gov",
+  "role": "inspector",
+  "super": false,
+  "is_active": true
+}
+```
+
+The login and current-user endpoints include this identity as `user`.
+Passwords, password confirmations, role IDs, and token hashes are never
+included in user responses.
+
+Only an active Admin with `super = true` may create an account:
+
+``` text
+POST /api/v1/users
+Authorization: Bearer <token>
+```
+
+The request accepts `name`, `email`, `role`, `password`,
+`password_confirmation`, and optional `super`. The role must be `admin`,
+`inspector`, or `contractor`; new accounts are active. Super privilege may
+only be assigned to an Admin. The creator supplies the initial password;
+credential delivery is handled outside the application.
+
+Successful creation returns `201` with the safe account identity. Requests
+without authentication return `401`; authenticated users without active
+super-admin privileges return `403`; invalid fields return `422`.

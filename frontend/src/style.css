@@ -288,6 +288,250 @@ p {
   text-transform: uppercase;
 }
 
+.workspace-frame {
+  width: min(100%, 1440px);
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 0 clamp(22px, 6vw, 88px);
+  box-sizing: border-box;
+}
+
+.workspace-header {
+  display: flex;
+  min-height: 82px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(32, 37, 40, 0.16);
+}
+
+.workspace-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.workspace-brand-mark {
+  display: grid;
+  width: 36px;
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--ink);
+  color: var(--orange);
+  font-family: 'DM Mono', monospace;
+  font-size: 20px;
+}
+
+.workspace-brand-name {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.workspace-brand-name span {
+  color: var(--orange);
+}
+
+.workspace-user {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.4;
+}
+
+.workspace-user-name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workspace-user-role {
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.workspace-content {
+  min-height: calc(100svh - 147px);
+  padding: clamp(48px, 8vh, 96px) 0;
+  box-sizing: border-box;
+}
+
+.workspace-content > h1 {
+  max-width: 900px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.workspace-action-row {
+  display: flex;
+  margin-top: 40px;
+}
+
+.primary-action,
+.secondary-action {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--orange);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: background-color 140ms ease;
+}
+
+.primary-action:hover,
+.secondary-action:hover {
+  background: var(--orange-dark);
+}
+
+.workspace-empty-state {
+  margin-top: 42px;
+  padding: 22px 0;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.workspace-footer {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(32, 37, 40, 0.16);
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.account-form {
+  max-width: 760px;
+  margin-top: 36px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px 18px;
+}
+
+.form-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.form-field-wide {
+  grid-column: 1 / -1;
+}
+
+.form-field label {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.form-field input,
+.form-field select {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid #c9c8c1;
+  border-radius: 6px;
+  outline: none;
+  box-sizing: border-box;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.form-field input:focus-visible,
+.form-field select:focus-visible {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 3px rgba(237, 100, 22, 0.16);
+}
+
+.form-field input[aria-invalid='true'] {
+  border-color: #a63d18;
+}
+
+.field-error {
+  color: #812f0b;
+  font-size: 12px;
+}
+
+.super-toggle {
+  display: grid;
+  grid-column: 2;
+  grid-template-columns: auto 1fr;
+  align-content: center;
+  align-items: center;
+  gap: 4px 9px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 254, 250, 0.64);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.super-toggle input {
+  grid-row: span 2;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--orange);
+}
+
+.super-toggle small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.account-form .primary-action {
+  margin-top: 28px;
+}
+
+.creation-success {
+  max-width: 600px;
+  margin-top: 38px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.creation-success h2 {
+  margin: 0 0 6px;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.creation-success > p:not(.eyebrow) {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.secondary-action {
+  margin-top: 24px;
+  background: var(--ink);
+}
+
 @media (max-width: 600px) {
   .app-frame {
     padding-inline: 24px;
@@ -308,5 +552,35 @@ p {
 
   .page-footer {
     min-height: 56px;
+  }
+
+  .workspace-frame {
+    padding-inline: 22px;
+  }
+
+  .workspace-header {
+    min-height: 70px;
+  }
+
+  .workspace-content > h1 {
+    font-size: 33px;
+  }
+
+  .workspace-footer {
+    gap: 12px;
+    font-size: 9px;
+  }
+
+  .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .form-field-wide {
+    grid-column: auto;
+  }
+
+  .super-toggle {
+    grid-column: auto;
+    grid-row: auto;
   }
 }

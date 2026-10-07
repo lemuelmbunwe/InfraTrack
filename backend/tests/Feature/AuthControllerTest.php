@@ -25,11 +25,13 @@ class AuthControllerTest extends TestCase
                 'token_type',
                 'access_token',
                 'expires_at',
-                'user' => ['id', 'name', 'email', 'super'],
+                'user' => ['id', 'name', 'email', 'role', 'super', 'is_active'],
             ])
             ->assertJsonPath('token_type', 'Bearer')
             ->assertJsonPath('user.id', $user->id)
+            ->assertJsonPath('user.role', 'admin')
             ->assertJsonPath('user.super', true)
+            ->assertJsonPath('user.is_active', true)
             ->assertJsonMissingPath('user.password');
 
         $this->assertDatabaseHas('personal_access_tokens', [
@@ -88,6 +90,8 @@ class AuthControllerTest extends TestCase
             ->assertJsonPath('user.id', $user->id)
             ->assertJsonPath('user.name', $user->name)
             ->assertJsonPath('user.email', $user->email)
+            ->assertJsonPath('user.role', 'admin')
+            ->assertJsonPath('user.super', true)
             ->assertJsonMissingPath('user.password')
             ->assertJsonMissingPath('user.role_id');
     }

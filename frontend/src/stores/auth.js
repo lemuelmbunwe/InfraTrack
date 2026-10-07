@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import {
   AuthRequestError,
   clearAccessToken,
+  createUser as requestCreateUser,
   fetchCurrentUser,
   getAccessToken,
   signIn as requestSignIn,
@@ -56,11 +57,16 @@ export function useAuthStore() {
     return currentUser.value
   }
 
+  async function createUser(userData) {
+    return requestCreateUser(userData)
+  }
+
   return {
     currentUser,
     isAuthenticated: computed(() => currentUser.value !== null),
     sessionError,
     restoreSession,
     signIn,
+    createUser,
   }
 }

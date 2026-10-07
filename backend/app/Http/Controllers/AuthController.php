@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,7 +38,7 @@ class AuthController extends Controller
             'token_type' => 'Bearer',
             'access_token' => $token->plainTextToken,
             'expires_at' => $expiresAt->toIso8601String(),
-            'user' => $this->userPayload($user),
+            'user' => UserResource::make($user->load('role'))->resolve($request),
         ]);
     }
 
@@ -54,20 +55,7 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'user' => $this->userPayload($user),
+            'user' => UserResource::make($user->load('role'))->resolve($request),
         ]);
-    }
-
-    /**
-     * @return array{id: int, name: string, email: string, super: bool}
-     */
-    private function userPayload(User $user): array
-    {
-        return [
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'super' => $user->super,
-        ];
     }
 }
