@@ -5,6 +5,8 @@ import AdminHomeView from '../views/AdminHomeView.vue'
 import InspectorHomeView from '../views/InspectorHomeView.vue'
 import ContractorHomeView from '../views/ContractorHomeView.vue'
 import CreateUserView from '../views/CreateUserView.vue'
+import IssueCreateView from '../views/IssueCreateView.vue'
+import IssueDetailView from '../views/IssueDetailView.vue'
 import { homeRouteName } from './roles'
 
 const router = createRouter({
@@ -40,6 +42,24 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'contractor', title: 'Contractor' },
     },
     {
+      path: '/inspector/issues/new',
+      name: 'issue-create',
+      component: IssueCreateView,
+      meta: { requiresAuth: true, role: 'inspector', title: 'Report issue' },
+    },
+    {
+      path: '/inspector/issues/:issueId',
+      name: 'inspector-issue-detail',
+      component: IssueDetailView,
+      meta: { requiresAuth: true, role: 'inspector', title: 'Issue details' },
+    },
+    {
+      path: '/admin/issues/:issueId',
+      name: 'admin-issue-detail',
+      component: IssueDetailView,
+      meta: { requiresAuth: true, role: 'admin', title: 'Issue details' },
+    },
+    {
       path: '/admin/users/new',
       name: 'user-create',
       component: CreateUserView,
@@ -47,7 +67,7 @@ const router = createRouter({
     },
     {
       path: '/:pathMatch(.*)*',
-      redirect: { name: 'session' },
+      redirect: { name: 'home' },
     },
   ],
 })

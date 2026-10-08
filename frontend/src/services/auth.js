@@ -1,4 +1,4 @@
-const apiBaseUrl = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api').replace(/\/$/, '')
+export const apiBaseUrl = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api').replace(/\/$/, '')
 const tokenStorageKey = 'infratrack_access_token'
 
 export class AuthRequestError extends Error {

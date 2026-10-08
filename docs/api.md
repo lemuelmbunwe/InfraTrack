@@ -136,3 +136,35 @@ credential delivery is handled outside the application.
 Successful creation returns `201` with the safe account identity. Requests
 without authentication return `401`; authenticated users without active
 super-admin privileges return `403`; invalid fields return `422`.
+
+## 12. Issue Reporting
+
+Inspectors create an issue with a multipart request:
+
+``` text
+POST /api/v1/issues
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+```
+
+The request requires an image, latitude, longitude, and severity (`low`,
+`medium`, or `high`). `address_text` and `description` are optional. The
+geocoded `address` is nullable and is not supplied by the client. The
+frontend currently generates editable sample coordinates around Yaounde;
+they are not captured GPS locations.
+
+The backend stores photos on its private local disk under a generated path.
+Responses expose an authorized `photo_url`, never a filesystem path.
+`reported_by`, `reported_at`, and initial status (`reported`) are set by the
+server.
+
+`GET /api/v1/issues` returns all issues to Admins and only the current
+Inspector's issues to Inspectors. `GET /api/v1/issues/{issue}` follows the
+same visibility rule. Contractors do not have issue access in this phase.
+`GET /api/v1/issues/{issue}/photo` streams the private image only after the
+same authorization check.
+
+Inspectors may update their own issue fields except status while the issue is
+not `assigned`. Admins may update status, severity, and description. Status
+updates are recorded in `issue_status_history`. Assignment creation and
+Contractor access are deferred.
