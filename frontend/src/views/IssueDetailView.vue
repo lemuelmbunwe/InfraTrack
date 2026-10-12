@@ -3,21 +3,55 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import WorkspaceShell from '../components/WorkspaceShell.vue'
 import { AuthRequestError } from '../services/auth'
-import { fetchIssue, fetchIssuePhoto, updateIssue } from '../services/issues'
+import {
+  assignIssue,
+  fetchContractors,
+  fetchIssue,
+  fetchIssuePhoto,
+  updateContractorStatus,
+  updateIssue,
+} from '../services/issues'
 import { useAuthStore } from '../stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+
 const issue = ref(null)
 const photoSource = ref('')
 const replacementPhoto = ref(null)
 const isLoading = ref(true)
 const isSaving = ref(false)
 const errorMessage = ref('')
+const successNotice = ref('')
 const errors = ref({})
+
 const isAdmin = computed(() => auth.currentUser.value?.role === 'admin')
-const canEdit = computed(() => isAdmin.value || issue.value?.status !== 'assigned')
+const isContractor = computed(() => auth.currentUser.value?.role === 'contractor')
+const isInspector = computed(() => auth.currentUser.value?.role === 'inspector')
+
+const canEdit = computed(() => {
+  if (isContractor.value) {
+    return false
+  }
+  if (isAdmin.value) {
+    return true
+  }
+  return issue.value?.status === 'reported' && !issue.value?.assigned_contractor
+})
+
+// Admin Assignment
+const contractors = ref([])
+const selectedContractorId = ref('')
+const isAssigning = ref(false)
+const assignmentError = ref('')
+const isLoadingContractors = ref(false)
+
+// Contractor Status Update
+const contractorStatus = ref('assigned')
+const isUpdatingStatus = ref(false)
+const contractorStatusError = ref('')
+
 const form = reactive({
   latitude: '',
   longitude: '',
@@ -36,6 +70,25 @@ function fillForm(issueData) {
   form.description = issueData.description || ''
   form.severity = issueData.severity
   form.status = issueData.status
+  contractorStatus.value = issueData.status
+}
+
+async function loadContractors() {
+  if (!isAdmin.value) {
+    return
+  }
+  isLoadingContractors.value = true
+  assignmentError.value = ''
+
+  try {
+    contractors.value = await fetchContractors()
+  } catch (error) {
+    assignmentError.value = error instanceof AuthRequestError
+      ? error.message
+      : 'Unable to load contractor directory.'
+  } finally {
+    isLoadingContractors.value = false
+  }
 }
 
 async function loadIssue() {
@@ -45,6 +98,9 @@ async function loadIssue() {
   try {
     issue.value = await fetchIssue(route.params.issueId)
     fillForm(issue.value)
+    if (isAdmin.value && issue.value.status === 'reported' && !issue.value.assigned_contractor) {
+      void loadContractors()
+    }
     photoSource.value = await fetchIssuePhoto(issue.value.photo_url)
   } catch (error) {
     errorMessage.value = error instanceof AuthRequestError && error.status === 404
@@ -59,13 +115,60 @@ function selectPhoto(event) {
   replacementPhoto.value = event.target.files?.[0] || null
 }
 
+async function handleAssignContractor() {
+  if (!selectedContractorId.value || !issue.value) {
+    return
+  }
+
+  isAssigning.value = true
+  assignmentError.value = ''
+  successNotice.value = ''
+
+  try {
+    const updated = await assignIssue(issue.value.id, Number(selectedContractorId.value))
+    issue.value = updated
+    fillForm(updated)
+    successNotice.value = `Issue assigned to ${updated.assigned_contractor?.name}.`
+  } catch (error) {
+    assignmentError.value = error instanceof AuthRequestError
+      ? error.message
+      : 'Unable to assign contractor.'
+  } finally {
+    isAssigning.value = false
+  }
+}
+
+async function handleContractorStatusUpdate() {
+  if (!issue.value || !contractorStatus.value) {
+    return
+  }
+
+  isUpdatingStatus.value = true
+  contractorStatusError.value = ''
+  successNotice.value = ''
+
+  try {
+    const updated = await updateContractorStatus(issue.value.id, contractorStatus.value)
+    issue.value = updated
+    fillForm(updated)
+    successNotice.value = `Issue status updated to ${updated.status.replace('_', ' ')}.`
+  } catch (error) {
+    contractorStatusError.value = error instanceof AuthRequestError
+      ? error.message
+      : 'Unable to update status.'
+  } finally {
+    isUpdatingStatus.value = false
+  }
+}
+
 async function saveChanges() {
-  if (!issue.value) {
+  if (!issue.value || isContractor.value) {
     return
   }
 
   isSaving.value = true
   errorMessage.value = ''
+  successNotice.value = ''
   errors.value = {}
 
   const changes = isAdmin.value
@@ -109,7 +212,21 @@ async function saveChanges() {
 }
 
 function returnToList() {
-  router.push({ name: isAdmin.value ? 'admin-home' : 'inspector-home' })
+  if (isAdmin.value) {
+    router.push({ name: 'admin-home' })
+  } else if (isContractor.value) {
+    router.push({ name: 'contractor-home' })
+  } else {
+    router.push({ name: 'inspector-home' })
+  }
+}
+
+function formatAssignmentDate(dateString) {
+  if (!dateString) return ''
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(dateString))
 }
 
 onMounted(loadIssue)
@@ -124,7 +241,7 @@ onBeforeUnmount(() => {
 <template>
   <WorkspaceShell
     :user="auth.currentUser.value"
-    :eyebrow="isAdmin ? 'Admin review' : 'Field inspector'"
+    :eyebrow="isAdmin ? 'Admin review' : (isContractor ? 'Contractor workspace' : 'Field inspector')"
     title="Issue details"
   >
     <p v-if="isLoading" class="issue-empty-state" role="status">Loading issue...</p>
@@ -139,7 +256,91 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
+      <p v-if="successNotice" class="success-message" role="status">{{ successNotice }}</p>
       <p v-if="errorMessage" class="error-message" role="alert">{{ errorMessage }}</p>
+
+      <!-- Assignment Info Banner (if assigned) -->
+      <section v-if="issue.assigned_contractor" class="assignment-summary-card" aria-label="Assigned contractor">
+        <div class="assignment-summary-header">
+          <span class="assignment-badge">Assigned</span>
+          <div>
+            <strong>{{ issue.assigned_contractor.name }}</strong>
+            <small v-if="issue.assigned_at">Assigned on {{ formatAssignmentDate(issue.assigned_at) }}</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- Admin Assignment Panel (if unassigned and reported) -->
+      <section
+        v-if="isAdmin && !issue.assigned_contractor && issue.status === 'reported'"
+        class="assignment-panel"
+        aria-label="Assign contractor"
+      >
+        <div class="assignment-panel-header">
+          <div>
+            <p class="eyebrow">Workforce dispatch</p>
+            <h2>Assign contractor</h2>
+          </div>
+        </div>
+        <p v-if="assignmentError" class="field-error" role="alert">{{ assignmentError }}</p>
+        <div class="assignment-action-row">
+          <div class="form-field">
+            <label for="assign-contractor-select">Available contractors</label>
+            <select
+              id="assign-contractor-select"
+              v-model="selectedContractorId"
+              :disabled="isAssigning || isLoadingContractors"
+            >
+              <option value="">{{ isLoadingContractors ? 'Loading contractors...' : 'Select active contractor' }}</option>
+              <option v-for="contractor in contractors" :key="contractor.id" :value="contractor.id">
+                {{ contractor.name }}
+              </option>
+            </select>
+          </div>
+          <button
+            class="primary-action"
+            type="button"
+            :disabled="!selectedContractorId || isAssigning"
+            @click="handleAssignContractor"
+          >
+            {{ isAssigning ? 'Assigning...' : 'Assign contractor' }}
+          </button>
+        </div>
+      </section>
+
+      <!-- Contractor Status Control Panel -->
+      <section v-if="isContractor" class="contractor-status-panel" aria-label="Update issue status">
+        <div class="contractor-status-header">
+          <div>
+            <p class="eyebrow">Work progress</p>
+            <h2>Update issue status</h2>
+          </div>
+        </div>
+        <p v-if="contractorStatusError" class="field-error" role="alert">{{ contractorStatusError }}</p>
+        <div class="contractor-status-row">
+          <div class="form-field">
+            <label for="contractor-status-select">Status</label>
+            <select
+              id="contractor-status-select"
+              v-model="contractorStatus"
+              :disabled="isUpdatingStatus"
+            >
+              <option value="reported">Reported</option>
+              <option value="assigned">Assigned</option>
+              <option value="in_progress">In progress</option>
+              <option value="resolved">Resolved</option>
+            </select>
+          </div>
+          <button
+            class="primary-action"
+            type="button"
+            :disabled="isUpdatingStatus"
+            @click="handleContractorStatusUpdate"
+          >
+            {{ isUpdatingStatus ? 'Updating...' : 'Update status' }}
+          </button>
+        </div>
+      </section>
 
       <div class="issue-detail-grid">
         <section class="issue-photo-panel">
@@ -182,7 +383,7 @@ onBeforeUnmount(() => {
                   <p v-if="errors.longitude" class="field-error">{{ errors.longitude[0] }}</p>
                 </div>
               </div>
-              <div class="form-field">
+              <div v-if="isInspector" class="form-field">
                 <label for="replacement-photo">Replace photo <span>Optional</span></label>
                 <input id="replacement-photo" type="file" accept="image/jpeg,image/png,image/webp" :disabled="!canEdit" @change="selectPhoto" />
                 <p v-if="errors.photo" class="field-error">{{ errors.photo[0] }}</p>
@@ -221,7 +422,9 @@ onBeforeUnmount(() => {
               {{ isSaving ? 'Saving...' : 'Save changes' }}
             </button>
           </div>
-          <p v-else class="issue-empty-state">This issue can no longer be edited by its Inspector.</p>
+          <p v-else-if="isInspector" class="issue-empty-state">
+            This issue has been assigned and can no longer be edited by its Inspector.
+          </p>
         </form>
       </div>
 

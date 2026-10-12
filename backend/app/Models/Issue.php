@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Issue extends Model
 {
@@ -43,5 +44,18 @@ class Issue extends Model
     public function statusHistory(): HasMany
     {
         return $this->hasMany(IssueStatusHistory::class)->orderBy('changed_at');
+    }
+
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(IssueAssignment::class)->orderBy('assigned_at');
+    }
+
+    public function activeAssignment(): HasOne
+    {
+        return $this->hasOne(IssueAssignment::class)->ofMany(
+            ['assigned_at' => 'max', 'id' => 'max'],
+            fn ($query) => $query->whereNull('unassigned_at'),
+        );
     }
 }

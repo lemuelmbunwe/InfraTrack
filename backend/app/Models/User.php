@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -54,8 +55,24 @@ class User extends Authenticatable
         return $this->hasMany(Issue::class, 'reported_by');
     }
 
+    public function assignedIssues(): BelongsToMany
+    {
+        return $this->belongsToMany(Issue::class, 'issue_assignments', 'contractor_id', 'issue_id')
+            ->wherePivotNull('unassigned_at');
+    }
+
     public function issueStatusChanges(): HasMany
     {
         return $this->hasMany(IssueStatusHistory::class, 'changed_by');
+    }
+
+    public function contractorAssignments(): HasMany
+    {
+        return $this->hasMany(IssueAssignment::class, 'contractor_id');
+    }
+
+    public function issuedAssignments(): HasMany
+    {
+        return $this->hasMany(IssueAssignment::class, 'assigned_by');
     }
 }

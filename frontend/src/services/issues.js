@@ -89,3 +89,40 @@ export async function fetchIssuePhoto(photoUrl) {
 
   return URL.createObjectURL(await response.blob())
 }
+
+export async function fetchContractors() {
+  const headers = { Accept: 'application/json' }
+  const token = getAccessToken()
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
+  const response = await fetch(`${apiBaseUrl}/v1/users/contractors`, { headers })
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new AuthRequestError(payload.message || 'Unable to load contractors.', response.status, payload)
+  }
+
+  return payload.contractors
+}
+
+export async function assignIssue(issueId, contractorId) {
+  const payload = await issueRequest(`/${encodeURIComponent(issueId)}/assignment`, {
+    method: 'PATCH',
+    body: { contractor_id: contractorId },
+  })
+
+  return payload.issue
+}
+
+export async function updateContractorStatus(issueId, status) {
+  const payload = await issueRequest(`/${encodeURIComponent(issueId)}/status`, {
+    method: 'PATCH',
+    body: { status },
+  })
+
+  return payload.issue
+}
+

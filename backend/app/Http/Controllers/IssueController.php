@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\AssignIssueRequest;
 use App\Http\Requests\StoreIssueRequest;
 use App\Http\Requests\UpdateIssueRequest;
+use App\Http\Requests\UpdateIssueStatusRequest;
 use App\Http\Resources\IssueResource;
 use App\Models\Issue;
+use App\Models\User;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,11 +24,21 @@ class IssueController extends Controller
     {
         Gate::authorize('viewAny', Issue::class);
 
+        $role = $request->user()->role?->name;
+        $userId = $request->user()->id;
+
         $issues = Issue::query()
-            ->with('reporter')
+            ->with($this->issueRelations())
             ->when(
-                $request->user()->role->name === 'inspector',
-                fn ($query) => $query->where('reported_by', $request->user()->id),
+                $role === 'inspector',
+                fn ($query) => $query->where('reported_by', $userId),
+            )
+            ->when(
+                $role === 'contractor',
+                fn ($query) => $query->whereHas(
+                    'activeAssignment',
+                    fn ($q) => $q->where('contractor_id', $userId),
+                ),
             )
             ->orderByDesc('reported_at')
             ->orderByDesc('id')
@@ -76,8 +89,52 @@ class IssueController extends Controller
         }
 
         return response()->json([
-            'issue' => IssueResource::make($issue->load('reporter'))->resolve($request),
+            'issue' => IssueResource::make($issue->load($this->issueRelations()))->resolve($request),
         ], 201);
+    }
+
+    public function assign(AssignIssueRequest $request, Issue $issue): JsonResponse
+    {
+        $contractorId = $request->validated('contractor_id');
+        $assignedBy = $request->user()->id;
+
+        $assignedIssue = DB::transaction(function () use ($assignedBy, $contractorId, $issue): Issue {
+            $lockedIssue = Issue::query()->lockForUpdate()->findOrFail($issue->id);
+            Gate::authorize('assign', $lockedIssue);
+
+            $contractor = User::query()
+                ->whereKey($contractorId)
+                ->where('is_active', true)
+                ->whereHas('role', fn ($query) => $query->where('name', 'contractor'))
+                ->firstOrFail();
+
+            $lockedIssue->assignments()->create([
+                'contractor_id' => $contractor->id,
+                'assigned_by' => $assignedBy,
+                'assigned_at' => now(),
+            ]);
+
+            $lockedIssue->status = 'assigned';
+            $lockedIssue->save();
+
+            return $lockedIssue->load($this->issueRelations());
+        });
+
+        return response()->json([
+            'issue' => IssueResource::make($assignedIssue)->resolve($request),
+        ]);
+    }
+
+    public function updateContractorStatus(UpdateIssueStatusRequest $request, Issue $issue): JsonResponse
+    {
+        Gate::authorize('updateStatus', $issue);
+
+        $issue->status = $request->input('status');
+        $issue->save();
+
+        return response()->json([
+            'issue' => IssueResource::make($issue->load($this->issueRelations()))->resolve($request),
+        ]);
     }
 
     public function show(Request $request, Issue $issue): JsonResponse
@@ -85,7 +142,7 @@ class IssueController extends Controller
         Gate::authorize('view', $issue);
 
         return response()->json([
-            'issue' => IssueResource::make($issue->load(['reporter', 'statusHistory']))->resolve($request),
+            'issue' => IssueResource::make($issue->load($this->issueRelations(withHistory: true)))->resolve($request),
         ]);
     }
 
@@ -135,7 +192,7 @@ class IssueController extends Controller
         }
 
         return response()->json([
-            'issue' => IssueResource::make($issue->load(['reporter', 'statusHistory']))->resolve($request),
+            'issue' => IssueResource::make($issue->load($this->issueRelations(withHistory: true)))->resolve($request),
         ]);
     }
 
@@ -153,5 +210,17 @@ class IssueController extends Controller
             'Cache-Control' => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    /** @return list<string> */
+    private function issueRelations(bool $withHistory = false): array
+    {
+        $relations = ['reporter', 'activeAssignment.contractor'];
+
+        if ($withHistory) {
+            $relations[] = 'statusHistory';
+        }
+
+        return $relations;
     }
 }

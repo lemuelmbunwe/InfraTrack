@@ -131,6 +131,83 @@ class UserControllerTest extends TestCase
         $this->assertDatabaseCount('users', 1);
     }
 
+    public function test_admin_can_list_active_contractors(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $admin = $this->createActor(super: false);
+        $contractorRole = $this->role('contractor');
+
+        $activeContractor1 = User::factory()->create([
+            'name' => 'Zara Contractor',
+            'email' => 'zara@example.test',
+            'role_id' => $contractorRole->id,
+            'is_active' => true,
+        ]);
+
+        $activeContractor2 = User::factory()->create([
+            'name' => 'Alex Contractor',
+            'email' => 'alex@example.test',
+            'role_id' => $contractorRole->id,
+            'is_active' => true,
+        ]);
+
+        User::factory()->create([
+            'name' => 'Inactive Contractor',
+            'email' => 'inactive@example.test',
+            'role_id' => $contractorRole->id,
+            'is_active' => false,
+        ]);
+
+        User::factory()->create([
+            'name' => 'Inspector User',
+            'email' => 'inspector@example.test',
+            'role_id' => $this->role('inspector')->id,
+            'is_active' => true,
+        ]);
+
+        $response = $this->withToken($admin->createToken('test-token')->plainTextToken)
+            ->getJson('/api/v1/users/contractors');
+
+        $response->assertOk()
+            ->assertJsonCount(2, 'contractors')
+            ->assertJsonPath('contractors.0.name', 'Alex Contractor')
+            ->assertJsonPath('contractors.1.name', 'Zara Contractor')
+            ->assertJsonPath('contractors.0.role', 'contractor')
+            ->assertJsonMissingPath('contractors.0.password');
+    }
+
+    public function test_non_admin_cannot_list_contractors(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $this->getJson('/api/v1/users/contractors')
+            ->assertUnauthorized();
+
+        $inspector = User::factory()->create([
+            'role_id' => $this->role('inspector')->id,
+            'is_active' => true,
+        ]);
+
+        $this->withToken($inspector->createToken('test-token')->plainTextToken)
+            ->getJson('/api/v1/users/contractors')
+            ->assertForbidden();
+
+        $contractor = User::factory()->create([
+            'role_id' => $this->role('contractor')->id,
+            'is_active' => true,
+        ]);
+
+        $this->withToken($contractor->createToken('test-token')->plainTextToken)
+            ->getJson('/api/v1/users/contractors')
+            ->assertForbidden();
+
+        $inactiveAdmin = $this->createActor(active: false);
+
+        $this->withToken($inactiveAdmin->createToken('test-token')->plainTextToken)
+            ->getJson('/api/v1/users/contractors')
+            ->assertForbidden();
+    }
+
     /**
      * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>

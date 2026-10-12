@@ -49,7 +49,7 @@ reassigned away from them.
 ## 6. Assignment Access
 
 A contractor's current issues are determined by active
-`issue_assignment` records:
+`issue_assignments` records:
 
 ``` text
 unassigned_at IS NULL
@@ -158,13 +158,63 @@ Responses expose an authorized `photo_url`, never a filesystem path.
 `reported_by`, `reported_at`, and initial status (`reported`) are set by the
 server.
 
-`GET /api/v1/issues` returns all issues to Admins and only the current
-Inspector's issues to Inspectors. `GET /api/v1/issues/{issue}` follows the
-same visibility rule. Contractors do not have issue access in this phase.
+`GET /api/v1/issues` returns all issues to Admins, only the current
+Inspector's issues to Inspectors, and only assigned issues to Contractors.
+`GET /api/v1/issues/{issue}` follows the same visibility rule.
 `GET /api/v1/issues/{issue}/photo` streams the private image only after the
 same authorization check.
 
 Inspectors may update their own issue fields except status while the issue is
-not `assigned`. Admins may update status, severity, and description. Status
-updates are recorded in `issue_status_history`. Assignment creation and
-Contractor access are deferred.
+in `reported` status and not assigned. Admins may update status, severity, and description.
+
+## 13. Contractor Assignment and Issue Management
+
+### 13.1 Contractor Directory
+Active Administrators can retrieve the list of active contractors:
+
+``` text
+GET /api/v1/users/contractors
+Authorization: Bearer <token>
+```
+
+Returns `200` with an array of active Contractor user identities ordered by name. Non-administrators receive `403`.
+
+### 13.2 Issue Assignment
+Active Administrators can assign an issue to a contractor:
+
+``` text
+PATCH /api/v1/issues/{issue}/assignment
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "contractor_id": 14
+}
+```
+
+- Allowed only when the issue is in `reported` status and has no current assignee.
+- Reassignment is not permitted in this phase.
+- `contractor_id` must belong to an active user with the `contractor` role.
+- Upon success, creates an `issue_assignments` row (`contractor_id`, `assigned_by`, `assigned_at`, `unassigned_at` null) and sets issue status to `assigned`. The issue resource exposes the current assignee as `assigned_contractor` and `assigned_at`.
+- Returns `200` with the updated issue resource.
+- No records are written to `issue_status_history`.
+
+### 13.3 Contractor Status Updates
+An assigned Contractor can update the status of their issue:
+
+``` text
+PATCH /api/v1/issues/{issue}/status
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "status": "in_progress"
+}
+```
+
+- Allowed only for the active Contractor currently assigned to the issue (an `issue_assignments` row with `unassigned_at` null and `contractor_id` equal to the authenticated user).
+- Accepts only `reported`, `assigned`, `in_progress`, or `resolved`.
+- Contractors cannot modify any other issue attributes.
+- Resolved issues remain visible and accessible to the assigned Contractor.
+- No records are written to `issue_status_history`.
+

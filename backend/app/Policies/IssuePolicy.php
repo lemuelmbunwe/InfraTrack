@@ -13,7 +13,7 @@ class IssuePolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->is_active && in_array($user->role?->name, ['admin', 'inspector'], true);
+        return $user->is_active && in_array($user->role?->name, ['admin', 'inspector', 'contractor'], true);
     }
 
     /**
@@ -31,6 +31,17 @@ class IssuePolicy
 
         if ($user->role?->name === 'inspector' && $issue->reported_by === $user->id) {
             return Response::allow();
+        }
+
+        // INCORPORATED: Check if contractor is assigned using relationship query
+        if ($user->role?->name === 'contractor') {
+            $isAssigned = $issue->activeAssignment()
+                ->where('contractor_id', $user->id)
+                ->exists();
+
+            if ($isAssigned) {
+                return Response::allow();
+            }
         }
 
         return Response::denyAsNotFound();
@@ -61,11 +72,35 @@ class IssuePolicy
             return Response::denyAsNotFound();
         }
 
-        if ($issue->status === 'assigned') {
+        // INCORPORATED: Prevent updates if an active assignment exists in the database
+        if ($issue->status !== 'reported' || $issue->activeAssignment()->exists()) {
             return Response::deny('Assigned issues can no longer be edited by Inspectors.');
         }
 
         return Response::allow();
+    }
+
+    /**
+     * Determine whether the user can assign a contractor to the issue.
+     */
+    public function assign(User $user, Issue $issue): bool
+    {
+        // INCORPORATED: Verify that NO assignment currently exists
+        return $user->is_active
+            && $user->role?->name === 'admin'
+            && $issue->status === 'reported'
+            && ! $issue->activeAssignment()->exists();
+    }
+
+    /**
+     * Determine whether the user can update the status of the issue.
+     */
+    public function updateStatus(User $user, Issue $issue): bool
+    {
+        // INCORPORATED: Verify contractor owns the current active assignment
+        return $user->is_active
+            && $user->role?->name === 'contractor'
+            && $issue->activeAssignment()->where('contractor_id', $user->id)->exists();
     }
 
     /**

@@ -14,12 +14,28 @@ class IssueResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $assignment = $this->whenLoaded('activeAssignment');
+
         return [
             'id' => $this->id,
             'reporter' => $this->whenLoaded('reporter', fn (): array => [
                 'id' => $this->reporter->id,
                 'name' => $this->reporter->name,
             ]),
+            'assigned_contractor' => $this->whenLoaded('activeAssignment', function () use ($assignment): ?array {
+                if ($assignment === null || $assignment->contractor === null) {
+                    return null;
+                }
+
+                return [
+                    'id' => $assignment->contractor->id,
+                    'name' => $assignment->contractor->name,
+                ];
+            }),
+            'assigned_at' => $this->when(
+                $this->relationLoaded('activeAssignment'),
+                fn (): ?string => $assignment?->assigned_at?->toIso8601String(),
+            ),
             'photo_url' => route('api.v1.issues.photo', ['issue' => $this->id]),
             'latitude' => (float) $this->latitude,
             'longitude' => (float) $this->longitude,

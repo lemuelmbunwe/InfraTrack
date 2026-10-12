@@ -18,9 +18,12 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::post('/users', [UserController::class, 'store']);
+        Route::get('/users/contractors', [UserController::class, 'contractors']);
 
         Route::get('/issues/{issue}/photo', [IssueController::class, 'photo'])
             ->name('api.v1.issues.photo');
+        Route::patch('/issues/{issue}/assignment', [IssueController::class, 'assign']);
+        Route::patch('/issues/{issue}/status', [IssueController::class, 'updateContractorStatus']);
         Route::apiResource('issues', IssueController::class)
             ->only(['index', 'store', 'show', 'update']);
     });

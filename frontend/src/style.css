@@ -688,6 +688,94 @@ p {
   font-size: 12px;
 }
 
+.contractor-workload-breakdown {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.assignment-summary-card {
+  margin-top: 20px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--green);
+}
+
+.assignment-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.assignment-summary-header strong {
+  display: block;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.assignment-summary-header small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.assignment-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  background: rgba(85, 117, 101, 0.12);
+  color: var(--green);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.assignment-panel,
+.contractor-status-panel {
+  margin-top: 20px;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--orange);
+}
+
+.assignment-panel-header,
+.contractor-status-header {
+  margin-bottom: 16px;
+}
+
+.assignment-panel-header .eyebrow,
+.contractor-status-header .eyebrow {
+  margin-bottom: 4px;
+}
+
+.assignment-panel-header h2,
+.contractor-status-header h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.assignment-action-row,
+.contractor-status-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.assignment-action-row .form-field,
+.contractor-status-row .form-field {
+  flex: 1;
+  min-width: 240px;
+}
+
 .issue-queue-header {
   display: flex;
   align-items: flex-end;
@@ -1194,4 +1282,16 @@ p {
     grid-column: auto;
     grid-row: auto;
   }
+
+  .assignment-action-row,
+  .contractor-status-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .assignment-action-row button,
+  .contractor-status-row button {
+    width: 100%;
+  }
 }
+

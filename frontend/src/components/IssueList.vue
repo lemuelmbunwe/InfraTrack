@@ -39,10 +39,13 @@ async function loadIssues() {
 }
 
 function detailRoute(issue) {
-  return {
-    name: props.role === 'admin' ? 'admin-issue-detail' : 'inspector-issue-detail',
-    params: { issueId: issue.id },
+  if (props.role === 'admin') {
+    return { name: 'admin-issue-detail', params: { issueId: issue.id } }
   }
+  if (props.role === 'contractor') {
+    return { name: 'contractor-issue-detail', params: { issueId: issue.id } }
+  }
+  return { name: 'inspector-issue-detail', params: { issueId: issue.id } }
 }
 
 function formatDate(value) {
@@ -70,11 +73,14 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="issue-queue" :aria-label="role === 'admin' ? 'Reported issues' : 'Your reports'">
+  <section
+    class="issue-queue"
+    :aria-label="role === 'admin' ? 'Reported issues' : (role === 'contractor' ? 'Assigned work queue' : 'Your reports')"
+  >
     <header class="issue-queue-header">
       <div>
-        <p class="eyebrow">{{ role === 'admin' ? 'Incoming reports' : 'Report history' }}</p>
-        <h2>{{ role === 'admin' ? 'Reported issues' : 'Your reports' }}</h2>
+        <p class="eyebrow">{{ role === 'admin' ? 'Incoming reports' : (role === 'contractor' ? 'Work queue' : 'Report history') }}</p>
+        <h2>{{ role === 'admin' ? 'Reported issues' : (role === 'contractor' ? 'Assigned to you' : 'Your reports') }}</h2>
       </div>
       <button class="quiet-action" type="button" :disabled="isLoading" @click="loadIssues">
         {{ isLoading ? 'Loading...' : 'Refresh' }}
@@ -85,7 +91,7 @@ onMounted(() => {
     <p v-if="errorMessage" class="error-message" role="alert">{{ errorMessage }}</p>
     <p v-else-if="isLoading" class="issue-empty-state" role="status">Loading reports...</p>
     <p v-else-if="issues.length === 0" class="issue-empty-state">
-      {{ role === 'admin' ? 'No issues have been reported.' : 'No reports yet.' }}
+      {{ role === 'admin' ? 'No issues have been reported.' : (role === 'contractor' ? 'No assigned work.' : 'No reports yet.') }}
     </p>
 
     <ul v-else class="issue-list">

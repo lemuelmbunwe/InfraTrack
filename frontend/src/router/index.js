@@ -60,6 +60,12 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'admin', title: 'Issue details' },
     },
     {
+      path: '/contractor/issues/:issueId',
+      name: 'contractor-issue-detail',
+      component: IssueDetailView,
+      meta: { requiresAuth: true, role: 'contractor', title: 'Issue details' },
+    },
+    {
       path: '/admin/users/new',
       name: 'user-create',
       component: CreateUserView,
