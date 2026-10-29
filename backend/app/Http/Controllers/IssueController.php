@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateIssueRequest;
 use App\Http\Requests\UpdateIssueStatusRequest;
 use App\Http\Resources\IssueResource;
 use App\Models\Issue;
+use App\Models\IssueAssignment;
 use App\Models\User;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\JsonResponse;
@@ -15,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -97,16 +99,37 @@ class IssueController extends Controller
     {
         $contractorId = $request->validated('contractor_id');
         $assignedBy = $request->user()->id;
+        $expectedStatus = $issue->status;
+        $expectedAssignmentId = $issue->activeAssignment()->value('id');
 
-        $assignedIssue = DB::transaction(function () use ($assignedBy, $contractorId, $issue): Issue {
+        $assignedIssue = DB::transaction(function () use ($assignedBy, $contractorId, $expectedAssignmentId, $expectedStatus, $issue): Issue {
             $lockedIssue = Issue::query()->lockForUpdate()->findOrFail($issue->id);
             Gate::authorize('assign', $lockedIssue);
+
+            $activeAssignment = IssueAssignment::query()
+                ->where('issue_id', $lockedIssue->id)
+                ->whereNull('unassigned_at')
+                ->orderByDesc('assigned_at')
+                ->orderByDesc('id')
+                ->lockForUpdate()
+                ->first();
+
+            if (
+                $lockedIssue->status !== $expectedStatus
+                || $activeAssignment?->id !== ($expectedAssignmentId === null ? null : (int) $expectedAssignmentId)
+            ) {
+                abort(409, 'The issue assignment changed. Reload the issue and try again.');
+            }
 
             $contractor = User::query()
                 ->whereKey($contractorId)
                 ->where('is_active', true)
                 ->whereHas('role', fn ($query) => $query->where('name', 'contractor'))
                 ->firstOrFail();
+
+            if ($activeAssignment) {
+                $activeAssignment->update(['unassigned_at' => now()]);
+            }
 
             $lockedIssue->assignments()->create([
                 'contractor_id' => $contractor->id,
@@ -127,10 +150,23 @@ class IssueController extends Controller
 
     public function updateContractorStatus(UpdateIssueStatusRequest $request, Issue $issue): JsonResponse
     {
-        Gate::authorize('updateStatus', $issue);
+        $status = $request->validated('status');
 
-        $issue->status = $request->input('status');
-        $issue->save();
+        $issue = DB::transaction(function () use ($issue, $status): Issue {
+            $lockedIssue = Issue::query()->lockForUpdate()->findOrFail($issue->id);
+            Gate::authorize('updateStatus', $lockedIssue);
+
+            if ($status === 'reported' && $lockedIssue->status !== 'reported' && $lockedIssue->assignments()->exists()) {
+                throw ValidationException::withMessages([
+                    'status' => 'An assigned issue cannot be returned to reported status.',
+                ]);
+            }
+
+            $lockedIssue->status = $status;
+            $lockedIssue->save();
+
+            return $lockedIssue;
+        });
 
         return response()->json([
             'issue' => IssueResource::make($issue->load($this->issueRelations()))->resolve($request),
@@ -165,19 +201,32 @@ class IssueController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($request, $issue, $validated, $oldStatus): void {
-                $issue->fill($validated);
+            DB::transaction(function () use ($request, $issue, $validated): void {
+                $lockedIssue = Issue::query()->lockForUpdate()->findOrFail($issue->id);
+                Gate::authorize('update', $lockedIssue);
+                $oldStatus = $lockedIssue->status;
+                $lockedIssue->fill($validated);
 
-                if ($issue->isDirty('status')) {
-                    $issue->statusHistory()->create([
+                if (
+                    $lockedIssue->isDirty('status')
+                    && $lockedIssue->status === 'reported'
+                    && $lockedIssue->assignments()->exists()
+                ) {
+                    throw ValidationException::withMessages([
+                        'status' => 'An assigned issue cannot be returned to reported status.',
+                    ]);
+                }
+
+                if ($lockedIssue->isDirty('status')) {
+                    $lockedIssue->statusHistory()->create([
                         'changed_by' => $request->user()->id,
                         'old_status' => $oldStatus,
-                        'new_status' => $issue->status,
+                        'new_status' => $lockedIssue->status,
                         'changed_at' => now(),
                     ]);
                 }
 
-                $issue->save();
+                $lockedIssue->save();
             });
         } catch (Throwable $exception) {
             if ($newPhotoPath) {
@@ -186,6 +235,8 @@ class IssueController extends Controller
 
             throw $exception;
         }
+
+        $issue->refresh();
 
         if ($newPhotoPath && $oldPhotoPath !== $newPhotoPath) {
             Storage::disk('local')->delete($oldPhotoPath);

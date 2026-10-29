@@ -62,9 +62,11 @@ Important fields: - `id` --- PK - `issue_id` --- FK → `issues.id` -
 
 Only an assignment with `unassigned_at IS NULL` is current.
 
-Reassignment is not implemented in this phase. When it is added, the
-previous assignment should receive an `unassigned_at` value. Backend
-queries must only expose current assignments to contractors.
+An issue has at most one current assignment. Reassignment is allowed only
+while the issue status is `assigned`; the previous row receives an
+`unassigned_at` value and a new active row is created. Reassignment does
+not require a reason. Backend queries expose only current assignments to
+contractors. Grouped maintenance assignments are deferred.
 
 ### `issue_status_history`
 

@@ -85,11 +85,14 @@ class IssuePolicy
      */
     public function assign(User $user, Issue $issue): bool
     {
-        // INCORPORATED: Verify that NO assignment currently exists
-        return $user->is_active
-            && $user->role?->name === 'admin'
-            && $issue->status === 'reported'
-            && ! $issue->activeAssignment()->exists();
+        if (! $user->is_active || $user->role?->name !== 'admin') {
+            return false;
+        }
+
+        $hasActiveAssignment = $issue->activeAssignment()->exists();
+
+        return ($issue->status === 'reported' && ! $hasActiveAssignment)
+            || ($issue->status === 'assigned' && $hasActiveAssignment);
     }
 
     /**

@@ -66,6 +66,16 @@ class UpdateIssueRequest extends FormRequest
             if (array_intersect($allowedFields, $providedFields) === []) {
                 $validator->errors()->add('issue', 'Provide at least one editable issue field.');
             }
+
+            $issue = $this->route('issue');
+            if (
+                $issue instanceof Issue
+                && $this->input('status') === 'reported'
+                && $issue->status !== 'reported'
+                && $issue->assignments()->exists()
+            ) {
+                $validator->errors()->add('status', 'An assigned issue cannot be returned to reported status.');
+            }
         }];
     }
 }

@@ -384,9 +384,9 @@ The system therefore maintains status history rather than relying only on the cu
 
 13. Assignments 
 
-An assignment represents a maintenance task given to a contractor. 
-
-One assignment can contain multiple issues. 
+The current implementation assigns one issue to one contractor. Grouping
+multiple issues into one maintenance assignment is deferred. The grouped
+assignment example below describes a future phase.
 
 Example: 
 
@@ -403,9 +403,10 @@ This supports real-world maintenance work where several potholes on the same roa
 
 14. Issue Assignment Rule 
 
-An issue can have only one current assignment at a time. 
-
-However, an issue may be reassigned. 
+An issue can have only one current assignment at a time. It may be
+reassigned while its status is `assigned`. The previous assignment remains
+in history and receives an `unassigned_at` value. Reassignment does not
+require a reason.
 
 Therefore, assignment history must be preserved. 
 
@@ -419,7 +420,11 @@ Reassigned
       ↓ 
 Assignment #23 
 
-The system must retain the history of these assignments. 
+The system must retain the history of these assignments. Issues in
+`in_progress` or `resolved` cannot be reassigned unless an Admin first
+returns the issue to `assigned`. Reassignment leaves the status as
+`assigned`. Once an issue has been assigned, no user may set it back to
+`reported`.
 
  
 
@@ -570,6 +575,11 @@ start with status `reported`. Initial severity values are `low`, `medium`, and
 `high`.
 
  
+
+The current `issue_assignments` table stores `issue_id`, `contractor_id`,
+`assigned_by`, `assigned_at`, and nullable `unassigned_at`. The grouped
+`assignments` entity and `issue_assignment` pivot below describe a future
+model and are not part of the current implementation.
 
 assignments 
 

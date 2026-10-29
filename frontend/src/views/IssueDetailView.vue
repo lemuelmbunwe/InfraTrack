@@ -46,11 +46,39 @@ const selectedContractorId = ref('')
 const isAssigning = ref(false)
 const assignmentError = ref('')
 const isLoadingContractors = ref(false)
+const showReassignmentPanel = ref(false)
+
+const canManageAssignment = computed(() => {
+  if (!isAdmin.value || !issue.value) {
+    return false
+  }
+
+  if (issue.value.assigned_contractor) {
+    return issue.value.status === 'assigned'
+  }
+
+  return issue.value.status === 'reported'
+})
 
 // Contractor Status Update
 const contractorStatus = ref('assigned')
 const isUpdatingStatus = ref(false)
 const contractorStatusError = ref('')
+
+// Helper function to open reassignment panel
+function openReassignmentPanel() {
+  showReassignmentPanel.value = true
+  assignmentError.value = ''
+  errors.value = {}
+  selectedContractorId.value = ''
+}
+
+function cancelReassignment() {
+  showReassignmentPanel.value = false
+  selectedContractorId.value = ''
+  assignmentError.value = ''
+  errors.value = {}
+}
 
 const form = reactive({
   latitude: '',
@@ -98,7 +126,7 @@ async function loadIssue() {
   try {
     issue.value = await fetchIssue(route.params.issueId)
     fillForm(issue.value)
-    if (isAdmin.value && issue.value.status === 'reported' && !issue.value.assigned_contractor) {
+    if (isAdmin.value) {
       void loadContractors()
     }
     photoSource.value = await fetchIssuePhoto(issue.value.photo_url)
@@ -116,7 +144,7 @@ function selectPhoto(event) {
 }
 
 async function handleAssignContractor() {
-  if (!selectedContractorId.value || !issue.value) {
+  if (!selectedContractorId.value || !issue.value || !canManageAssignment.value) {
     return
   }
 
@@ -124,15 +152,29 @@ async function handleAssignContractor() {
   assignmentError.value = ''
   successNotice.value = ''
 
+  const wasReassignment = !!issue.value.assigned_contractor
+
   try {
     const updated = await assignIssue(issue.value.id, Number(selectedContractorId.value))
     issue.value = updated
     fillForm(updated)
-    successNotice.value = `Issue assigned to ${updated.assigned_contractor?.name}.`
+    showReassignmentPanel.value = false
+    selectedContractorId.value = ''
+    successNotice.value = wasReassignment
+      ? `Issue reassigned to ${updated.assigned_contractor?.name}.`
+      : `Issue assigned to ${updated.assigned_contractor?.name}.`
   } catch (error) {
     assignmentError.value = error instanceof AuthRequestError
       ? error.message
       : 'Unable to assign contractor.'
+    if (error instanceof AuthRequestError && error.status === 422) {
+      errors.value = Object.fromEntries(
+        Object.entries(error.payload.errors || {}).map(([field, messages]) => [
+          field,
+          Array.isArray(messages) ? messages : [messages],
+        ]),
+      )
+    }
   } finally {
     isAssigning.value = false
   }
@@ -260,50 +302,76 @@ onBeforeUnmount(() => {
       <p v-if="errorMessage" class="error-message" role="alert">{{ errorMessage }}</p>
 
       <!-- Assignment Info Banner (if assigned) -->
-      <section v-if="issue.assigned_contractor" class="assignment-summary-card" aria-label="Assigned contractor">
+      <section v-if="issue?.assigned_contractor" class="assignment-summary-card" aria-label="Assigned contractor">
         <div class="assignment-summary-header">
           <span class="assignment-badge">Assigned</span>
           <div>
-            <strong>{{ issue.assigned_contractor.name }}</strong>
+            <strong>{{ issue.assigned_contractor?.name }}</strong>
             <small v-if="issue.assigned_at">Assigned on {{ formatAssignmentDate(issue.assigned_at) }}</small>
           </div>
+          <button
+            v-if="isAdmin && issue.status === 'assigned'"
+            class="quiet-action"
+            type="button"
+            @click="openReassignmentPanel"
+          >
+            Reassign
+          </button>
         </div>
       </section>
 
-      <!-- Admin Assignment Panel (if unassigned and reported) -->
+      <!-- Admin Assignment Panel -->
       <section
-        v-if="isAdmin && !issue.assigned_contractor && issue.status === 'reported'"
+        v-if="isAdmin && issue && ((issue.status === 'reported' && !issue.assigned_contractor) || (issue.status === 'assigned' && issue.assigned_contractor && showReassignmentPanel))"
         class="assignment-panel"
         aria-label="Assign contractor"
       >
         <div class="assignment-panel-header">
           <div>
             <p class="eyebrow">Workforce dispatch</p>
-            <h2>Assign contractor</h2>
+            <h2>{{ issue.assigned_contractor ? 'Reassign contractor' : 'Assign contractor' }}</h2>
           </div>
         </div>
         <p v-if="assignmentError" class="field-error" role="alert">{{ assignmentError }}</p>
+
         <div class="assignment-action-row">
           <div class="form-field">
-            <label for="assign-contractor-select">Available contractors</label>
+            <label for="assign-contractor-select">{{ issue.assigned_contractor ? 'Available contractors' : 'Select active contractor' }}</label>
             <select
               id="assign-contractor-select"
               v-model="selectedContractorId"
               :disabled="isAssigning || isLoadingContractors"
             >
-              <option value="">{{ isLoadingContractors ? 'Loading contractors...' : 'Select active contractor' }}</option>
-              <option v-for="contractor in contractors" :key="contractor.id" :value="contractor.id">
-                {{ contractor.name }}
+              <option value="">{{ isLoadingContractors ? 'Loading contractors...' : 'Select contractor' }}</option>
+              <option
+                v-for="contractor in contractors"
+                :key="contractor.id"
+                :value="contractor.id"
+                :disabled="contractor.id === issue.assigned_contractor?.id"
+              >
+                {{ contractor.name }}{{ contractor.id === issue.assigned_contractor?.id ? ' (current)' : '' }}
               </option>
             </select>
           </div>
+        </div>
+
+        <div class="assignment-action-row">
+          <button
+            v-if="issue.assigned_contractor"
+            class="quiet-action"
+            type="button"
+            :disabled="isAssigning"
+            @click="cancelReassignment"
+          >
+            Cancel
+          </button>
           <button
             class="primary-action"
             type="button"
-            :disabled="!selectedContractorId || isAssigning"
+            :disabled="!selectedContractorId || isAssigning || Number(selectedContractorId) === issue.assigned_contractor?.id"
             @click="handleAssignContractor"
           >
-            {{ isAssigning ? 'Assigning...' : 'Assign contractor' }}
+            {{ isAssigning ? 'Assigning...' : (issue.assigned_contractor ? 'Reassign' : 'Assign contractor') }}
           </button>
         </div>
       </section>
@@ -325,7 +393,6 @@ onBeforeUnmount(() => {
               v-model="contractorStatus"
               :disabled="isUpdatingStatus"
             >
-              <option value="reported">Reported</option>
               <option value="assigned">Assigned</option>
               <option value="in_progress">In progress</option>
               <option value="resolved">Resolved</option>
@@ -395,7 +462,7 @@ onBeforeUnmount(() => {
             <div v-if="isAdmin" class="form-field">
               <label for="detail-status">Status</label>
               <select id="detail-status" v-model="form.status">
-                <option value="reported">Reported</option>
+                <option v-if="issue.status === 'reported' || !issue.assigned_contractor" value="reported">Reported</option>
                 <option value="assigned">Assigned</option>
                 <option value="in_progress">In progress</option>
                 <option value="resolved">Resolved</option>

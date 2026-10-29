@@ -48,6 +48,14 @@ class AssignIssueRequest extends FormRequest
             if ($contractor === null || ! $contractor->is_active || $contractor->role?->name !== 'contractor') {
                 $validator->errors()->add('contractor_id', 'Select an active Contractor account.');
             }
+
+            $issue = $this->route('issue');
+            if ($issue) {
+                $activeAssignment = $issue->activeAssignment()->first();
+                if ($activeAssignment && (int) $activeAssignment->contractor_id === $this->integer('contractor_id')) {
+                    $validator->errors()->add('contractor_id', 'This contractor is already assigned to this issue.');
+                }
+            }
         }];
     }
 }

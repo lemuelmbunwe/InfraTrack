@@ -19,6 +19,7 @@ class IssueAssignment extends Model
         'assigned_by',
         'assigned_at',
         'unassigned_at',
+        'reason',
     ];
 
     protected function casts(): array

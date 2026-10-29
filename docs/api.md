@@ -166,6 +166,9 @@ same authorization check.
 
 Inspectors may update their own issue fields except status while the issue is
 in `reported` status and not assigned. Admins may update status, severity, and description.
+Once an issue has been assigned, neither Admins nor Contractors may set its
+status back to `reported`. Admins may move issues between other supported
+statuses, including back to `assigned`.
 
 ## 13. Contractor Assignment and Issue Management
 
@@ -192,10 +195,11 @@ Content-Type: application/json
 }
 ```
 
-- Allowed only when the issue is in `reported` status and has no current assignee.
-- Reassignment is not permitted in this phase.
+- Initial assignment is allowed only when the issue is in `reported` status and has no current assignee.
+- Reassignment is allowed only when the issue is in `assigned` status and has a current assignee. The previous assignment receives `unassigned_at`; a new active assignment is created. The issue remains `assigned`.
+- Reassignment does not require a reason. Reassignment is not allowed while status is `in_progress` or `resolved`; an Admin may move an issue back to `assigned` before reassigning it.
 - `contractor_id` must belong to an active user with the `contractor` role.
-- Upon success, creates an `issue_assignments` row (`contractor_id`, `assigned_by`, `assigned_at`, `unassigned_at` null) and sets issue status to `assigned`. The issue resource exposes the current assignee as `assigned_contractor` and `assigned_at`.
+- Upon success, creates an `issue_assignments` row (`contractor_id`, `assigned_by`, `assigned_at`, `unassigned_at` null). The issue resource exposes the current assignee as `assigned_contractor` and `assigned_at`.
 - Returns `200` with the updated issue resource.
 - No records are written to `issue_status_history`.
 
@@ -213,7 +217,7 @@ Content-Type: application/json
 ```
 
 - Allowed only for the active Contractor currently assigned to the issue (an `issue_assignments` row with `unassigned_at` null and `contractor_id` equal to the authenticated user).
-- Accepts only `reported`, `assigned`, `in_progress`, or `resolved`.
+- Accepts only `reported`, `assigned`, `in_progress`, or `resolved`. `reported` is rejected when the issue has an assignment history and is not already in `reported` status.
 - Contractors cannot modify any other issue attributes.
 - Resolved issues remain visible and accessible to the assigned Contractor.
 - No records are written to `issue_status_history`.
