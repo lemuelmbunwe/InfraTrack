@@ -209,10 +209,10 @@ Content-Type: application/json
 - `title` is required. `instructions` is optional and nullable.
 - `contractor_id` must identify an active user with the `contractor` role.
 - `issue_ids` must contain one or more distinct issues. Every selected issue must be in `reported` status and have no current allocation. If any issue is ineligible, the request is rejected without partially creating the assignment.
-- On success, the API creates one assignment and one active `issue_assignments` row per selected issue, all linked to the same assignment and initial contractor. Each row records the assigning Admin and allocation time.
+- On success, the API creates one assignment with `initial_contractor_id` set to the selected Contractor and one active `issue_assignments` row per selected issue, all linked to the same assignment and initial contractor. Each row records the assigning Admin and allocation time.
 - Returns `201` with the created assignment resource.
 
-Admins can list and view all assignments, including those with no currently allocated issues. Contractors can list and view only assignments in which they currently have at least one issue. The assignment resource includes its title, instructions, involved contractors, and issue roster. For roster issues, expose only the issue identifier, status, and current responsible contractor; issue detail and photo endpoints continue to enforce per-issue access.
+Admins can list and view all assignments, including those with no currently allocated issues. Contractors can list and view only assignments in which they currently have at least one issue. The assignment resource includes its title, instructions, initial Contractor, currently involved contractors, and issue roster. The initial Contractor remains the one selected at creation; the current involved contractors are derived from active issue allocations and may change after reassignment. For roster issues, expose only the issue identifier, status, and current responsible contractor; issue detail and photo endpoints continue to enforce per-issue access.
 
 Admins can edit an assignment's title and instructions:
 

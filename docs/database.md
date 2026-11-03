@@ -76,19 +76,26 @@ only through their current allocations.
 Stores maintenance work packages that group issues.
 
 Fields: `id` (PK), `title`, `instructions` (nullable), `assigned_by` (FK →
-`users.id`), and timestamps.
+`users.id`), `initial_contractor_id` (FK → `users.id`), and timestamps.
+
+`initial_contractor_id` records the Contractor selected when the assignment
+was created. It remains unchanged after issue reassignments. The current
+contractors involved in the assignment are derived from its active issue
+allocations and may differ from the initial Contractor.
 
 The current database does not yet contain this table or the `assignment_id`
-column. They will be introduced through migrations. The migration plan is to
-create `assignments`, add `assignment_id` to `issue_assignments`, create one
-legacy assignment per issue with existing allocation rows, link that issue's
-allocation history to it, and then require the foreign key for all allocation
-rows.
+column. They are introduced through separate migrations. The new foreign key
+is nullable so existing allocation rows remain unchanged and unlinked. New
+allocations created as part of a grouped assignment will store its ID. The
+column remains nullable to support those legacy rows; its non-null values
+must reference an existing assignment.
 
 An assignment's current issues and contractors are derived from allocations
-where `unassigned_at IS NULL`. An assignment with no current issues remains
-available to Admins. Contractors cannot be added independently; they are
-involved only while they have at least one current issue in the assignment.
+with its `assignment_id` and `unassigned_at IS NULL`. An assignment with no
+current issues remains available to Admins. Contractors cannot be added
+independently; they are involved only while they have at least one current
+issue in the assignment. Legacy allocation rows with a null `assignment_id`
+are not associated with a grouped assignment.
 Admins can edit the title and instructions; edits overwrite the current
 values. Assignment edit history is deferred.
 
@@ -131,7 +138,7 @@ normal UI feature.
 roles 1 ─── * users
 
 users 1 ─── * issues (as reporter)
-users 1 ─── * assignments (as creator)
+users 1 ─── * assignments (as creator or initial Contractor)
 users 1 ─── * issue_assignments (as contractor or assigner)
 users 1 ─── * issue_status_history
 users 1 ─── * audit_logs

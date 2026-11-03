@@ -394,6 +394,10 @@ and providing a title and optional instructions. Contractors cannot be added
 to an assignment independently; they become involved through the issues
 currently allocated to them.
 
+The assignment records the Contractor selected at creation as its initial
+Contractor. This value remains unchanged if issues are later reassigned. The
+current contractor list continues to be derived from current issue allocations.
+
 Example:
 
 Assignment #15 — Main Street repairs
@@ -600,6 +604,7 @@ id
 title
 instructions (nullable)
 assigned_by (FK to users)
+initial_contractor_id (FK to users)
 created_at 
 updated_at 
 
@@ -622,8 +627,11 @@ created_at
 updated_at 
 
 Each issue may have at most one allocation where `unassigned_at` is null.
-Every allocation belongs to an assignment. Reassignment creates another
-allocation row for the same issue and assignment with the new Contractor.
+Allocations created through grouped assignment management include an
+`assignment_id`. Existing legacy allocation rows may have a null
+`assignment_id` and are not linked to a grouped assignment. Reassignment
+within a grouped assignment creates another allocation row for the same issue
+and assignment with the new Contractor.
 
  
 
@@ -665,7 +673,7 @@ updated_at
 roles 1 ─── * users
 
 users 1 ─── * issues (as reporter)
-users 1 ─── * assignments (as creator)
+users 1 ─── * assignments (as creator or initial Contractor)
 users 1 ─── * issue_assignments (as contractor or assigner)
 
 assignments 1 ─── * issue_assignments
@@ -678,7 +686,7 @@ More specifically:
 roles 1 ─── * users 
  
 users 1 ─── * issues 
-users 1 ─── * assignments (as creator)
+users 1 ─── * assignments (as creator or initial Contractor)
 users 1 ─── * issue_status_history 
  
 issues 1 ─── * issue_assignments
