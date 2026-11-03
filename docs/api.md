@@ -41,21 +41,26 @@ Client-side validation only improves user experience.
 
 Every protected operation must verify permissions.
 
-Examples: - Only authorized admins can manage users. - Only authorized
-admins can manage assignments. - Contractors can only access their
-current assignments. - A contractor must lose access when an issue is
-reassigned away from them.
+Examples: - Only authorized admins can manage users and assignments. -
+Contractors can view assignment details and the issue roster only for
+assignments where they currently have at least one issue. - Contractors can
+open issue details or photos only for issues currently allocated to them. -
+A contractor must lose issue access when it is reassigned away from them.
 
 ## 6. Assignment Access
 
-A contractor's current issues are determined by active
-`issue_assignments` records:
+A contractor's current issues and assignment involvement are determined by
+active `issue_assignments` records:
 
 ``` text
 unassigned_at IS NULL
 ```
 
-Historical assignments remain stored but do not grant current access.
+Historical allocations remain stored but do not grant current access. An
+assignment summary may include every issue's identifier, status, and current
+responsible contractor so involved contractors can see the full roster. It
+must not expose other contractors' issue details or photos. Admins can view
+all assignments, including assignments with no current issues.
 
 ## 7. Issue Status Updates
 
@@ -182,8 +187,43 @@ Authorization: Bearer <token>
 
 Returns `200` with an array of active Contractor user identities ordered by name. Non-administrators receive `403`.
 
-### 13.2 Issue Assignment
-Active Administrators can assign an issue to a contractor:
+### 13.2 Assignment Management
+Assignments group multiple issues under a title and optional instructions.
+Only active Administrators can create, edit, and manage assignments.
+
+Create an assignment:
+
+``` text
+POST /api/v1/assignments
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "title": "Main Street repairs",
+  "instructions": "Repair the marked potholes.",
+  "contractor_id": 14,
+  "issue_ids": [101, 102, 103]
+}
+```
+
+- `title` is required. `instructions` is optional and nullable.
+- `contractor_id` must identify an active user with the `contractor` role.
+- `issue_ids` must contain one or more distinct issues. Every selected issue must be in `reported` status and have no current allocation. If any issue is ineligible, the request is rejected without partially creating the assignment.
+- On success, the API creates one assignment and one active `issue_assignments` row per selected issue, all linked to the same assignment and initial contractor. Each row records the assigning Admin and allocation time.
+- Returns `201` with the created assignment resource.
+
+Admins can list and view all assignments, including those with no currently allocated issues. Contractors can list and view only assignments in which they currently have at least one issue. The assignment resource includes its title, instructions, involved contractors, and issue roster. For roster issues, expose only the issue identifier, status, and current responsible contractor; issue detail and photo endpoints continue to enforce per-issue access.
+
+Admins can edit an assignment's title and instructions:
+
+``` text
+PATCH /api/v1/assignments/{assignment}
+```
+
+Edits replace the current values. Assignment detail edit history is not part of this feature.
+
+### 13.3 Issue Reassignment
+Active Administrators can reassign an issue to a different Contractor while keeping it in its existing assignment:
 
 ``` text
 PATCH /api/v1/issues/{issue}/assignment
@@ -191,19 +231,17 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "contractor_id": 14
+  "contractor_id": 27
 }
 ```
 
-- Initial assignment is allowed only when the issue is in `reported` status and has no current assignee.
-- Reassignment is allowed only when the issue is in `assigned` status and has a current assignee. The previous assignment receives `unassigned_at`; a new active assignment is created. The issue remains `assigned`.
-- Reassignment does not require a reason. Reassignment is not allowed while status is `in_progress` or `resolved`; an Admin may move an issue back to `assigned` before reassigning it.
-- `contractor_id` must belong to an active user with the `contractor` role.
-- Upon success, creates an `issue_assignments` row (`contractor_id`, `assigned_by`, `assigned_at`, `unassigned_at` null). The issue resource exposes the current assignee as `assigned_contractor` and `assigned_at`.
-- Returns `200` with the updated issue resource.
-- No records are written to `issue_status_history`.
+- Reassignment is allowed only when the issue is in `assigned` status and has a current allocation.
+- `contractor_id` must identify an active user with the `contractor` role and must differ from the current Contractor.
+- The previous allocation receives an `unassigned_at` value. A new active allocation is created with the same `assignment_id` and the new Contractor. No new assignment is created, and the issue remains `assigned`.
+- Reassignment is not allowed while the issue is `in_progress` or `resolved`; an Admin must first return it to `assigned`.
+- Returns `200` with the updated issue resource, including the new current assignee. No records are written to `issue_status_history`.
 
-### 13.3 Contractor Status Updates
+### 13.4 Contractor Status Updates
 An assigned Contractor can update the status of their issue:
 
 ``` text

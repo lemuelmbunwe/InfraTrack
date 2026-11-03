@@ -382,49 +382,58 @@ The system therefore maintains status history rather than relying only on the cu
 
  
 
-13. Assignments 
+13. Assignments
 
-The current implementation assigns one issue to one contractor. Grouping
-multiple issues into one maintenance assignment is deferred. The grouped
-assignment example below describes a future phase.
+A maintenance assignment is a work package with a title and optional
+instructions. It can contain multiple issues. Each issue can belong to one
+assignment at a time and has exactly one currently responsible contractor.
 
-Example: 
+An Admin creates an assignment by selecting issues that are `reported` and
+have no current allocation, choosing one active Contractor for those issues,
+and providing a title and optional instructions. Contractors cannot be added
+to an assignment independently; they become involved through the issues
+currently allocated to them.
 
-Assignment #15 
-     │ 
-     ├── Pothole #101 
-     ├── Pothole #102 
-     ├── Pothole #103 
-     └── Pothole #104 
+Example:
 
-This supports real-world maintenance work where several potholes on the same road or area are handled as one maintenance operation. 
+Assignment #15 — Main Street repairs
+     │
+     ├── Issue #101 — Contractor A
+     ├── Issue #102 — Contractor B
+     └── Issue #103 — Contractor A
 
- 
+An assignment's current contractor list is derived from the contractors on
+its currently allocated issues. If a Contractor has no current issues in an
+assignment, they are no longer listed as involved. An assignment with no
+current issues remains available to Admins alongside active assignments; the
+system does not yet support moving issues between assignments.
 
-14. Issue Assignment Rule 
+Contractors involved in an assignment can view its issue roster, including
+issue identifiers, statuses, and responsible contractors. They can open
+details only for issues currently assigned to them. Admins can view the full
+assignment and open all its issue details.
 
-An issue can have only one current assignment at a time. It may be
-reassigned while its status is `assigned`. The previous assignment remains
-in history and receives an `unassigned_at` value. Reassignment does not
-require a reason.
 
-Therefore, assignment history must be preserved. 
+14. Issue Allocation and Reassignment
 
-Example: 
+An issue can have only one current allocation at a time. Each allocation
+identifies the assignment, responsible Contractor, Admin who made the
+allocation, and allocation timestamps. Previous allocation records are
+retained when responsibility changes.
 
-Pothole #101 
-      ↓ 
-Assignment #15 
-      ↓ 
-Reassigned 
-      ↓ 
-Assignment #23 
+An Admin may reassign an issue only while its status is `assigned`. The issue
+remains in the same assignment, its status remains `assigned`, and a new
+allocation record is created for the selected Contractor. Reassigning to the
+current Contractor is rejected. Issues in `in_progress` or `resolved` cannot
+be reassigned; an Admin must first return the issue to `assigned`. A
+Contractor loses access to issue details when it is reassigned away from
+them. Once an issue has been assigned, no user may set it back to `reported`.
 
-The system must retain the history of these assignments. Issues in
-`in_progress` or `resolved` cannot be reassigned unless an Admin first
-returns the issue to `assigned`. Reassignment leaves the status as
-`assigned`. Once an issue has been assigned, no user may set it back to
-`reported`.
+Status history remains issue-specific. Assignment creation, reassignment,
+and assignment detail edits are not given a user-facing history feature in
+this phase. Admins can edit an assignment's title and instructions; edits
+overwrite the current values. Future history logging may capture previous
+values before they are overwritten.
 
  
 
@@ -576,10 +585,10 @@ start with status `reported`. Initial severity values are `low`, `medium`, and
 
  
 
-The current `issue_assignments` table stores `issue_id`, `contractor_id`,
-`assigned_by`, `assigned_at`, and nullable `unassigned_at`. The grouped
-`assignments` entity and `issue_assignment` pivot below describe a future
-model and are not part of the current implementation.
+The current `issue_assignments` table stores issue-to-contractor allocation
+history. The target grouped-assignment model adds an `assignments` table and
+an `assignment_id` foreign key on each allocation record. Implementation
+will add this through migrations rather than rewriting the existing migration.
 
 assignments 
 
@@ -587,30 +596,34 @@ Stores maintenance assignments.
 
 Important information includes: 
 
-id 
-assigned_by 
-contractor_id 
-title 
-description 
-assigned_at 
+id
+title
+instructions (nullable)
+assigned_by (FK to users)
 created_at 
 updated_at 
 
  
 
-issue_assignment 
+issue_assignments
 
 Maintains the relationship between issues and assignments and preserves reassignment history. 
 
 Important information includes: 
 
 id 
+assignment_id (FK to assignments)
 issue_id 
-assignment_id 
+contractor_id (FK to users)
+assigned_by (FK to users)
 assigned_at 
 unassigned_at 
 created_at 
 updated_at 
+
+Each issue may have at most one allocation where `unassigned_at` is null.
+Every allocation belongs to an assignment. Reassignment creates another
+allocation row for the same issue and assignment with the new Contractor.
 
  
 
@@ -649,46 +662,27 @@ updated_at
 
 17. Database Relationship Summary 
 
-roles 
-   │ 
-   │ 1 
-   │ 
-   │ * 
-   ▼ 
-users 
-   │ 
-   ├───────────────┐ 
-   │               │ 
-   │               │ 
-   ▼               ▼ 
-issues        assignments 
-   │               │ 
-   │               │ 
-   ▼               ▼ 
-issue_assignment 
-   │ 
-   │ 
-   └───────────────┐ 
-                   │ 
-                   ▼ 
-             assignments 
- 
-issues 
-   │ 
-   ├── issue_status_history 
-   │ 
-   └── ai_analyses 
+roles 1 ─── * users
+
+users 1 ─── * issues (as reporter)
+users 1 ─── * assignments (as creator)
+users 1 ─── * issue_assignments (as contractor or assigner)
+
+assignments 1 ─── * issue_assignments
+issues 1 ─── * issue_assignments
+issues 1 ─── * issue_status_history
+issues 1 ─── * ai_analyses
 
 More specifically: 
 
 roles 1 ─── * users 
  
 users 1 ─── * issues 
-users 1 ─── * assignments 
+users 1 ─── * assignments (as creator)
 users 1 ─── * issue_status_history 
  
-issues 1 ─── * issue_assignment 
-assignments 1 ─── * issue_assignment 
+issues 1 ─── * issue_assignments
+assignments 1 ─── * issue_assignments
  
 issues 1 ─── * issue_status_history 
 issues 1 ─── * ai_analyses 
