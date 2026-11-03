@@ -6,6 +6,7 @@ use Database\Factories\IssueFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -49,6 +50,12 @@ class Issue extends Model
     public function assignments(): HasMany
     {
         return $this->hasMany(IssueAssignment::class)->orderBy('assigned_at');
+    }
+
+    public function workAssignments(): BelongsToMany
+    {
+        return $this->belongsToMany(Assignment::class, 'issue_assignments')
+            ->wherePivotNull('unassigned_at');
     }
 
     public function activeAssignment(): HasOne

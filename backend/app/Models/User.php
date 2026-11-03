@@ -55,6 +55,16 @@ class User extends Authenticatable
         return $this->hasMany(Issue::class, 'reported_by');
     }
 
+    public function createdAssignments(): HasMany
+    {
+        return $this->hasMany(Assignment::class, 'assigned_by');
+    }
+
+    public function initiallyAssignedAssignments(): HasMany
+    {
+        return $this->hasMany(Assignment::class, 'initial_contractor_id');
+    }
+
     public function assignedIssues(): BelongsToMany
     {
         return $this->belongsToMany(Issue::class, 'issue_assignments', 'contractor_id', 'issue_id')

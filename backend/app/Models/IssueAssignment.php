@@ -14,6 +14,7 @@ class IssueAssignment extends Model
     use HasFactory;
 
     protected $fillable = [
+        'assignment_id',
         'issue_id',
         'contractor_id',
         'assigned_by',
@@ -33,6 +34,11 @@ class IssueAssignment extends Model
     public function issue(): BelongsTo
     {
         return $this->belongsTo(Issue::class);
+    }
+
+    public function assignment(): BelongsTo
+    {
+        return $this->belongsTo(Assignment::class);
     }
 
     public function contractor(): BelongsTo
