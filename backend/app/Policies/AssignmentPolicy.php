@@ -35,4 +35,9 @@ class AssignmentPolicy
 
         return Response::denyAsNotFound();
     }
+
+    public function update(User $user, Assignment $assignment): bool
+    {
+        return $user->is_active && $user->role?->name === 'admin';
+    }
 }

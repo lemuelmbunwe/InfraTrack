@@ -23,6 +23,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/assignments', [AssignmentController::class, 'store']);
         Route::get('/assignments', [AssignmentController::class, 'index']);
         Route::get('/assignments/{assignment}', [AssignmentController::class, 'show']);
+        Route::patch('/assignments/{assignment}', [AssignmentController::class, 'update']);
 
         Route::get('/issues/{issue}/photo', [IssueController::class, 'photo'])
             ->name('api.v1.issues.photo');

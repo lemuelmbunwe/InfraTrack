@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreAssignmentRequest;
+use App\Http\Requests\UpdateAssignmentRequest;
 use App\Http\Resources\AssignmentResource;
 use App\Models\Assignment;
 use App\Models\Issue;
@@ -42,6 +43,29 @@ class AssignmentController extends Controller
     public function show(Request $request, Assignment $assignment): JsonResponse
     {
         Gate::authorize('view', $assignment);
+
+        $assignment->load($this->assignmentRelations());
+
+        return response()->json([
+            'assignment' => AssignmentResource::make($assignment)->resolve($request),
+        ]);
+    }
+
+    public function update(UpdateAssignmentRequest $request, Assignment $assignment): JsonResponse
+    {
+        $validated = $request->validated();
+
+        $assignment = DB::transaction(function () use ($assignment, $validated): Assignment {
+            $lockedAssignment = Assignment::query()
+                ->lockForUpdate()
+                ->findOrFail($assignment->id);
+
+            Gate::authorize('update', $lockedAssignment);
+            $lockedAssignment->fill($validated);
+            $lockedAssignment->save();
+
+            return $lockedAssignment;
+        });
 
         $assignment->load($this->assignmentRelations());
 
