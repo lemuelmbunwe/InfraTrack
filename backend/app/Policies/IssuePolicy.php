@@ -89,10 +89,8 @@ class IssuePolicy
             return false;
         }
 
-        $hasActiveAssignment = $issue->activeAssignment()->exists();
-
-        return ($issue->status === 'reported' && ! $hasActiveAssignment)
-            || ($issue->status === 'assigned' && $hasActiveAssignment);
+        return $issue->status === 'assigned'
+            && $issue->activeAssignment()->whereNotNull('assignment_id')->exists();
     }
 
     /**

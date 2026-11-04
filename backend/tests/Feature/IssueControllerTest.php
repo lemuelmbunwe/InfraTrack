@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Issue;
 use App\Models\IssueAssignment;
+use App\Models\Assignment;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -325,42 +326,22 @@ class IssueControllerTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_admin_can_assign_contractor_to_reported_unassigned_issue(): void
+    public function test_admin_cannot_create_an_initial_assignment_from_the_issue_endpoint(): void
     {
         $inspector = $this->createUser('inspector');
         $issue = $this->createIssue($inspector, ['status' => 'reported']);
         $admin = $this->createUser('admin');
         $contractor = $this->createUser('contractor');
 
-        $historyCountBefore = DB::table('issue_status_history')->count();
-
         $response = $this->withToken($admin->createToken('test-token')->plainTextToken)
             ->patchJson('/api/v1/issues/'.$issue->id.'/assignment', [
                 'contractor_id' => $contractor->id,
             ]);
 
-        $response->assertOk()
-            ->assertJsonPath('issue.id', $issue->id)
-            ->assertJsonPath('issue.status', 'assigned')
-            ->assertJsonPath('issue.assigned_contractor.id', $contractor->id)
-            ->assertJsonPath('issue.assigned_contractor.name', $contractor->name);
-
-        $this->assertNotNull($response->json('issue.assigned_at'));
-
-        $fresh = $issue->fresh();
-        $this->assertSame('assigned', $fresh->status);
-        $this->assertDatabaseHas('issue_assignments', [
-            'issue_id' => $issue->id,
-            'contractor_id' => $contractor->id,
-            'assigned_by' => $admin->id,
-            'unassigned_at' => null,
-        ]);
-        $this->assertTrue(
-            $fresh->activeAssignment()->where('contractor_id', $contractor->id)->exists(),
-        );
-
-        // Verify NO issue_status_history record was added
-        $this->assertSame($historyCountBefore, DB::table('issue_status_history')->count());
+        $response->assertForbidden();
+        $this->assertDatabaseCount('issue_assignments', 0);
+        $this->assertDatabaseCount('assignments', 0);
+        $this->assertSame('reported', $issue->fresh()->status);
     }
 
     public function test_admin_can_reassign_an_assigned_issue_and_preserves_assignment_history(): void
@@ -392,6 +373,7 @@ class IssueControllerTest extends TestCase
             ->firstOrFail();
         $this->assertNotNull($previousAssignment->unassigned_at);
         $this->assertDatabaseHas('issue_assignments', [
+            'assignment_id' => $previousAssignment->assignment_id,
             'issue_id' => $issue->id,
             'contractor_id' => $contractor2->id,
             'assigned_by' => $admin->id,
@@ -400,6 +382,8 @@ class IssueControllerTest extends TestCase
         $freshIssue = $issue->fresh();
         $this->assertTrue($freshIssue->activeAssignment()->where('contractor_id', $contractor2->id)->exists());
         $this->assertFalse($freshIssue->activeAssignment()->where('contractor_id', $contractor1->id)->exists());
+
+        $this->assertSame($previousAssignment->assignment_id, $freshIssue->activeAssignment->assignment_id);
 
         Auth::forgetGuards();
         $this->withToken($oldContractorToken)
@@ -474,7 +458,12 @@ class IssueControllerTest extends TestCase
     public function test_assignment_validates_contractor_account(): void
     {
         $inspector = $this->createUser('inspector');
-        $issue = $this->createIssue($inspector);
+        $validContractor = $this->createUser('contractor');
+        $issue = $this->createIssue($inspector, [
+            'assigned_to' => $validContractor->id,
+            'assigned_at' => now(),
+            'status' => 'assigned',
+        ]);
         $admin = $this->createUser('admin');
         $token = $admin->createToken('test-token')->plainTextToken;
 
@@ -504,6 +493,27 @@ class IssueControllerTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('contractor_id');
+    }
+
+    public function test_admin_cannot_reassign_issue_to_its_current_contractor(): void
+    {
+        $inspector = $this->createUser('inspector');
+        $contractor = $this->createUser('contractor');
+        $issue = $this->createIssue($inspector, [
+            'assigned_to' => $contractor->id,
+            'assigned_at' => now(),
+            'status' => 'assigned',
+        ]);
+        $admin = $this->createUser('admin');
+
+        $this->withToken($admin->createToken('test-token')->plainTextToken)
+            ->patchJson('/api/v1/issues/'.$issue->id.'/assignment', [
+                'contractor_id' => $contractor->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['contractor_id']);
+
+        $this->assertDatabaseCount('issue_assignments', 1);
     }
 
     public function test_assigned_contractor_can_update_status(): void
@@ -684,7 +694,15 @@ class IssueControllerTest extends TestCase
         ]);
 
         if ($contractorId !== null) {
+            $assignment = Assignment::query()->create([
+                'title' => 'Test maintenance assignment',
+                'instructions' => null,
+                'assigned_by' => $assignedBy,
+                'initial_contractor_id' => $contractorId,
+            ]);
+
             IssueAssignment::factory()->create([
+                'assignment_id' => $assignment->id,
                 'issue_id' => $issue->id,
                 'contractor_id' => $contractorId,
                 'assigned_by' => $assignedBy,

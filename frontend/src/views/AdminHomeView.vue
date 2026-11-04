@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import IssueList from '../components/IssueList.vue'
+import AssignmentList from '../components/AssignmentList.vue'
 import { useAuthStore } from '../stores/auth'
 import WorkspaceShell from '../components/WorkspaceShell.vue'
 
@@ -42,11 +43,15 @@ function updateIssueMetrics(issues) {
       </div>
     </section>
 
-    <div v-if="auth.currentUser.value?.super" class="workspace-action-row">
-      <RouterLink class="primary-action" :to="{ name: 'user-create' }">
-        Create user <span aria-hidden="true">+</span>
+    <div class="workspace-action-row">
+      <RouterLink class="primary-action" :to="{ name: 'assignment-create' }">
+        Create assignment <span aria-hidden="true">+</span>
+      </RouterLink>
+      <RouterLink v-if="auth.currentUser.value?.super" class="quiet-link" :to="{ name: 'user-create' }">
+        Create user
       </RouterLink>
     </div>
+    <AssignmentList role="admin" />
     <IssueList role="admin" @loaded="updateIssueMetrics" />
   </WorkspaceShell>
 </template>

@@ -100,9 +100,10 @@ class IssueController extends Controller
         $contractorId = $request->validated('contractor_id');
         $assignedBy = $request->user()->id;
         $expectedStatus = $issue->status;
-        $expectedAssignmentId = $issue->activeAssignment()->value('id');
+        $expectedAllocationId = $issue->activeAssignment()->value('id');
+        $expectedAssignmentId = $issue->activeAssignment()->value('assignment_id');
 
-        $assignedIssue = DB::transaction(function () use ($assignedBy, $contractorId, $expectedAssignmentId, $expectedStatus, $issue): Issue {
+        $assignedIssue = DB::transaction(function () use ($assignedBy, $contractorId, $expectedAllocationId, $expectedAssignmentId, $expectedStatus, $issue): Issue {
             $lockedIssue = Issue::query()->lockForUpdate()->findOrFail($issue->id);
             Gate::authorize('assign', $lockedIssue);
 
@@ -116,9 +117,14 @@ class IssueController extends Controller
 
             if (
                 $lockedIssue->status !== $expectedStatus
-                || $activeAssignment?->id !== ($expectedAssignmentId === null ? null : (int) $expectedAssignmentId)
+                || $activeAssignment?->id !== ($expectedAllocationId === null ? null : (int) $expectedAllocationId)
+                || $activeAssignment?->assignment_id !== ($expectedAssignmentId === null ? null : (int) $expectedAssignmentId)
             ) {
                 abort(409, 'The issue assignment changed. Reload the issue and try again.');
+            }
+
+            if ($activeAssignment === null || $activeAssignment->assignment_id === null) {
+                abort(409, 'The issue is not part of a maintenance assignment.');
             }
 
             $contractor = User::query()
@@ -127,18 +133,14 @@ class IssueController extends Controller
                 ->whereHas('role', fn ($query) => $query->where('name', 'contractor'))
                 ->firstOrFail();
 
-            if ($activeAssignment) {
-                $activeAssignment->update(['unassigned_at' => now()]);
-            }
+            $activeAssignment->update(['unassigned_at' => now()]);
 
             $lockedIssue->assignments()->create([
+                'assignment_id' => $activeAssignment->assignment_id,
                 'contractor_id' => $contractor->id,
                 'assigned_by' => $assignedBy,
                 'assigned_at' => now(),
             ]);
-
-            $lockedIssue->status = 'assigned';
-            $lockedIssue->save();
 
             return $lockedIssue->load($this->issueRelations());
         });

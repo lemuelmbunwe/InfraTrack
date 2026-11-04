@@ -2,12 +2,13 @@
 import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import WorkspaceShell from '../components/WorkspaceShell.vue'
-import IssueList from '../components/IssueList.vue'
+import AssignmentList from '../components/AssignmentList.vue'
 
 const auth = useAuthStore()
 const workload = ref(null)
 
-function updateWorkload(issues) {
+function updateWorkload(assignments) {
+  const issues = assignments.flatMap((assignment) => assignment.issues)
   workload.value = {
     total: issues.length,
     active: issues.filter((issue) => issue.status !== 'resolved').length,
@@ -26,7 +27,7 @@ function updateWorkload(issues) {
       <section class="contractor-work-summary" aria-label="Workload summary">
         <div>
           <p class="eyebrow">Current workload</p>
-          <h2>Assignments</h2>
+          <h2>Assigned work</h2>
           <p v-if="workload" class="contractor-workload-breakdown">
             <span>{{ workload.active }} active</span>
             <span aria-hidden="true"> · </span>
@@ -39,7 +40,7 @@ function updateWorkload(issues) {
       </section>
 
       <section class="contractor-work-queue">
-        <IssueList role="contractor" @loaded="updateWorkload" />
+        <AssignmentList role="contractor" @loaded="updateWorkload" />
       </section>
     </div>
   </WorkspaceShell>

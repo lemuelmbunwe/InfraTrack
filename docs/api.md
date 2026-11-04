@@ -223,7 +223,7 @@ PATCH /api/v1/assignments/{assignment}
 Edits replace the current values. Assignment detail edit history is not part of this feature.
 
 ### 13.3 Issue Reassignment
-Active Administrators can reassign an issue to a different Contractor while keeping it in its existing assignment:
+Initial allocations are created through `POST /api/v1/assignments`. Active Administrators use this endpoint only to reassign an issue that already belongs to an assignment:
 
 ``` text
 PATCH /api/v1/issues/{issue}/assignment
@@ -235,7 +235,7 @@ Content-Type: application/json
 }
 ```
 
-- Reassignment is allowed only when the issue is in `assigned` status and has a current allocation.
+- Reassignment is allowed only when the issue is in `assigned` status and its current allocation has a non-null `assignment_id`.
 - `contractor_id` must identify an active user with the `contractor` role and must differ from the current Contractor.
 - The previous allocation receives an `unassigned_at` value. A new active allocation is created with the same `assignment_id` and the new Contractor. No new assignment is created, and the issue remains `assigned`.
 - Reassignment is not allowed while the issue is `in_progress` or `resolved`; an Admin must first return it to `assigned`.

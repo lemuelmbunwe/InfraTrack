@@ -7,6 +7,8 @@ import ContractorHomeView from '../views/ContractorHomeView.vue'
 import CreateUserView from '../views/CreateUserView.vue'
 import IssueCreateView from '../views/IssueCreateView.vue'
 import IssueDetailView from '../views/IssueDetailView.vue'
+import AssignmentCreateView from '../views/AssignmentCreateView.vue'
+import AssignmentDetailView from '../views/AssignmentDetailView.vue'
 import { homeRouteName } from './roles'
 
 const router = createRouter({
@@ -30,6 +32,18 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'admin', title: 'Admin' },
     },
     {
+      path: '/admin/assignments/new',
+      name: 'assignment-create',
+      component: AssignmentCreateView,
+      meta: { requiresAuth: true, role: 'admin', title: 'Create assignment' },
+    },
+    {
+      path: '/admin/assignments/:assignmentId',
+      name: 'admin-assignment-detail',
+      component: AssignmentDetailView,
+      meta: { requiresAuth: true, role: 'admin', title: 'Assignment details' },
+    },
+    {
       path: '/inspector',
       name: 'inspector-home',
       component: InspectorHomeView,
@@ -40,6 +54,12 @@ const router = createRouter({
       name: 'contractor-home',
       component: ContractorHomeView,
       meta: { requiresAuth: true, role: 'contractor', title: 'Contractor' },
+    },
+    {
+      path: '/contractor/assignments/:assignmentId',
+      name: 'contractor-assignment-detail',
+      component: AssignmentDetailView,
+      meta: { requiresAuth: true, role: 'contractor', title: 'Assignment details' },
     },
     {
       path: '/inspector/issues/new',
