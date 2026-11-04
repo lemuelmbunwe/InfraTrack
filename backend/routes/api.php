@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AssignmentController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -19,6 +20,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::post('/users', [UserController::class, 'store']);
         Route::get('/users/contractors', [UserController::class, 'contractors']);
+        Route::post('/assignments', [AssignmentController::class, 'store']);
+        Route::get('/assignments', [AssignmentController::class, 'index']);
+        Route::get('/assignments/{assignment}', [AssignmentController::class, 'show']);
 
         Route::get('/issues/{issue}/photo', [IssueController::class, 'photo'])
             ->name('api.v1.issues.photo');
