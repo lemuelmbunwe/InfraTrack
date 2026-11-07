@@ -71,7 +71,7 @@ with the new contractor. Reassignment to the current contractor is rejected.
 Reassignment does not require a reason. Contractors can access issue details
 only through their current allocations.
 
-### `assignments` (planned)
+### `assignments`
 
 Stores maintenance work packages that group issues.
 
