@@ -10,6 +10,8 @@ use Illuminate\Validation\Validator;
 
 class StoreAssignmentRequest extends FormRequest
 {
+    public const ISSUE_ALREADY_ASSIGNED_MESSAGE = 'This issue has already been assigned. Refresh your browser and check its status again.';
+
     public function authorize(): bool
     {
         $user = $this->user();
@@ -45,6 +47,7 @@ class StoreAssignmentRequest extends FormRequest
 
             if ($contractor === null || ! $contractor->is_active || $contractor->role?->name !== 'contractor') {
                 $validator->errors()->add('contractor_id', 'Select an active Contractor account.');
+
                 return;
             }
 
@@ -57,12 +60,18 @@ class StoreAssignmentRequest extends FormRequest
                 ->whereIn('id', $issueIds)
                 ->whereHas('activeAssignment')
                 ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
                 ->all();
 
             foreach ($issueIds as $index => $issueId) {
                 $issue = $issues->get($issueId);
 
-                if ($issue === null || $issue->status !== 'reported' || in_array($issue->id, $alreadyAllocatedIds, true)) {
+                if ($issue !== null && in_array((int) $issue->id, $alreadyAllocatedIds, true)) {
+                    $validator->errors()->add(
+                        "issue_ids.$index",
+                        self::ISSUE_ALREADY_ASSIGNED_MESSAGE,
+                    );
+                } elseif ($issue === null || $issue->status !== 'reported') {
                     $validator->errors()->add(
                         "issue_ids.$index",
                         'Each selected issue must be reported and have no current allocation.',

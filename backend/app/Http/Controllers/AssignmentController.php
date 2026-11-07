@@ -110,10 +110,17 @@ class AssignmentController extends Controller
                 ->whereIn('issue_id', $issueIds)
                 ->whereNull('unassigned_at')
                 ->pluck('issue_id')
+                ->map(fn ($issueId): int => (int) $issueId)
                 ->all();
 
             foreach ($issues as $issue) {
-                if ($issue->status !== 'reported' || in_array($issue->id, $alreadyAllocatedIds, true)) {
+                if (in_array((int) $issue->id, $alreadyAllocatedIds, true)) {
+                    throw ValidationException::withMessages([
+                        'issue_ids' => StoreAssignmentRequest::ISSUE_ALREADY_ASSIGNED_MESSAGE,
+                    ]);
+                }
+
+                if ($issue->status !== 'reported') {
                     throw ValidationException::withMessages([
                         'issue_ids' => 'Each selected issue must still be reported and have no current allocation.',
                     ]);

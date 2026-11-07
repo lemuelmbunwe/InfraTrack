@@ -67,13 +67,16 @@ async function submitAssignment() {
     await router.replace({ name: 'admin-assignment-detail', params: { assignmentId: assignment.id } })
   } catch (error) {
     if (error instanceof AuthRequestError && error.status === 422) {
+      const responseErrors = error.payload.errors || {}
       errors.value = Object.fromEntries(
-        Object.entries(error.payload.errors || {}).map(([field, messages]) => [
+        Object.entries(responseErrors).map(([field, messages]) => [
           field,
           Array.isArray(messages) ? messages : [messages],
         ]),
       )
-      errorMessage.value = 'Review the highlighted fields and selected issues.'
+      const issueError = Object.entries(errors.value)
+        .find(([field]) => field === 'issue_ids' || field.startsWith('issue_ids.'))?.[1]?.[0]
+      errorMessage.value = issueError || 'Review the highlighted fields and selected issues.'
     } else if (error instanceof AuthRequestError && error.status === 403) {
       errorMessage.value = 'You are not allowed to create assignments.'
     } else {
