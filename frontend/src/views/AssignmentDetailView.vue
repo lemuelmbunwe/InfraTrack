@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import WorkspaceShell from '../components/WorkspaceShell.vue'
-import { AuthRequestError } from '../services/auth'
+import { ApiError } from '../services/apiClient'
 import { fetchAssignment, updateAssignment } from '../services/assignments'
 import { fetchContractors, assignIssue } from '../services/issues'
 import { useAuthStore } from '../stores/auth'
@@ -45,7 +45,7 @@ async function loadAssignment() {
     }
   } catch (error) {
     assignment.value = null
-    errorMessage.value = error instanceof AuthRequestError && error.status === 404
+    errorMessage.value = error instanceof ApiError && error.status === 404
       ? 'This assignment is unavailable.'
       : 'Unable to load assignment details right now.'
   } finally {
@@ -112,15 +112,10 @@ async function saveDetails() {
     isEditingDetails.value = false
     successMessage.value = 'Assignment details saved.'
   } catch (error) {
-    if (error instanceof AuthRequestError && error.status === 422) {
-      errors.value = Object.fromEntries(
-        Object.entries(error.payload.errors || {}).map(([field, messages]) => [
-          field,
-          Array.isArray(messages) ? messages : [messages],
-        ]),
-      )
+    if (error instanceof ApiError && error.status === 422) {
+      errors.value = error.errors
       errorMessage.value = 'Review the highlighted assignment details.'
-    } else if (error instanceof AuthRequestError && error.status === 403) {
+    } else if (error instanceof ApiError && error.status === 403) {
       errorMessage.value = 'You are not allowed to edit this assignment.'
     } else {
       errorMessage.value = 'Unable to save assignment details right now.'
@@ -147,14 +142,11 @@ async function reassignIssue(issue) {
     selectedContractorId.value = ''
     successMessage.value = `Issue #${issue.id} was reassigned.`
   } catch (error) {
-    if (error instanceof AuthRequestError && error.status === 422) {
-      errors.value = Object.fromEntries(
-        Object.entries(error.payload.errors || {}).map(([field, messages]) => [
-          field,
-          Array.isArray(messages) ? messages : [messages],
-        ]),
-      )
+    if (error instanceof ApiError && error.status === 422) {
+      errors.value = error.errors
       errorMessage.value = 'The issue could not be reassigned. Check its status and contractor.'
+    } else if (error instanceof ApiError && error.status === 409) {
+      errorMessage.value = error.message
     } else {
       errorMessage.value = 'Unable to reassign this issue right now.'
     }

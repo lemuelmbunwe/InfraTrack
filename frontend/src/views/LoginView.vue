@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AuthShell from '../components/AuthShell.vue'
 import LoginForm from '../components/LoginForm.vue'
-import { AuthRequestError } from '../services/auth'
+import { ApiError } from '../services/apiClient'
 import { homeRouteName } from '../router/roles'
 import { useAuthStore } from '../stores/auth'
 
@@ -14,7 +14,7 @@ const isSubmitting = ref(false)
 const errorMessage = ref(auth.sessionError.value)
 
 function messageForError(error) {
-  if (error instanceof AuthRequestError) {
+  if (error instanceof ApiError) {
     if (error.status === 401) {
       return 'Email or password is incorrect.'
     }
@@ -24,7 +24,7 @@ function messageForError(error) {
     }
 
     if (error.status === 422) {
-      return Object.values(error.payload.errors || {}).flat()[0] || 'Enter a valid email and password.'
+      return Object.values(error.errors).flat()[0] || 'Enter a valid email and password.'
     }
 
     if (error.status === 429) {

@@ -1,33 +1,4 @@
-import { apiBaseUrl, AuthRequestError, getAccessToken } from './auth'
-
-async function issueRequest(path, { method = 'GET', body } = {}) {
-  const headers = {
-    Accept: 'application/json',
-  }
-  const token = getAccessToken()
-  const isMultipart = body instanceof FormData
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
-  }
-
-  if (body && !isMultipart) {
-    headers['Content-Type'] = 'application/json'
-  }
-
-  const response = await fetch(`${apiBaseUrl}/v1/issues${path}`, {
-    method,
-    headers,
-    body: body ? (isMultipart ? body : JSON.stringify(body)) : undefined,
-  })
-  const payload = await response.json().catch(() => ({}))
-
-  if (!response.ok) {
-    throw new AuthRequestError(payload.message || 'Unable to load issue data.', response.status, payload)
-  }
-
-  return payload
-}
+import { apiFetch, apiRequest } from './apiClient'
 
 export function generateYaoundeSampleCoordinates() {
   const latitude = 3.848
@@ -41,88 +12,80 @@ export function generateYaoundeSampleCoordinates() {
 }
 
 export async function fetchIssues() {
-  const payload = await issueRequest('')
+  const payload = await apiRequest('/v1/issues', {
+    fallbackMessage: 'Unable to load issue data.',
+  })
 
   return payload.issues
 }
 
 export async function fetchIssue(issueId) {
-  const payload = await issueRequest(`/${encodeURIComponent(issueId)}`)
+  const payload = await apiRequest(`/v1/issues/${encodeURIComponent(issueId)}`, {
+    fallbackMessage: 'Unable to load issue data.',
+  })
 
   return payload.issue
 }
 
 export async function createIssue(formData) {
-  const payload = await issueRequest('', { method: 'POST', body: formData })
+  const payload = await apiRequest('/v1/issues', {
+    method: 'POST',
+    body: formData,
+    fallbackMessage: 'Unable to submit this report.',
+  })
 
   return payload.issue
 }
 
 export async function updateIssue(issueId, changes) {
-  const isMultipart = changes instanceof FormData
+  const isMultipart = typeof FormData !== 'undefined' && changes instanceof FormData
 
   if (isMultipart) {
     changes.append('_method', 'PATCH')
   }
 
-  const payload = await issueRequest(`/${encodeURIComponent(issueId)}`, {
+  const payload = await apiRequest(`/v1/issues/${encodeURIComponent(issueId)}`, {
     method: isMultipart ? 'POST' : 'PATCH',
     body: changes,
+    fallbackMessage: 'Unable to save issue changes.',
   })
 
   return payload.issue
 }
 
 export async function fetchIssuePhoto(photoUrl) {
-  const headers = { Accept: 'image/*' }
-  const token = getAccessToken()
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
-  }
-
-  const response = await fetch(photoUrl, { headers })
-
-  if (!response.ok) {
-    throw new AuthRequestError('Unable to load issue photo.', response.status)
-  }
+  const response = await apiFetch(photoUrl, {
+    headers: { Accept: 'image/*' },
+    fallbackMessage: 'Unable to load issue photo.',
+  })
 
   return URL.createObjectURL(await response.blob())
 }
 
 export async function fetchContractors() {
-  const headers = { Accept: 'application/json' }
-  const token = getAccessToken()
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
-  }
-
-  const response = await fetch(`${apiBaseUrl}/v1/users/contractors`, { headers })
-  const payload = await response.json().catch(() => ({}))
-
-  if (!response.ok) {
-    throw new AuthRequestError(payload.message || 'Unable to load contractors.', response.status, payload)
-  }
+  const payload = await apiRequest('/v1/users/contractors', {
+    fallbackMessage: 'Unable to load contractors.',
+  })
 
   return payload.contractors
 }
 
 export async function assignIssue(issueId, contractorId) {
-  const payload = await issueRequest(`/${encodeURIComponent(issueId)}/assignment`, {
+  const payload = await apiRequest(`/v1/issues/${encodeURIComponent(issueId)}/assignment`, {
     method: 'PATCH',
     body: { contractor_id: contractorId },
+    fallbackMessage: 'Unable to assign this issue.',
   })
 
   return payload.issue
 }
 
 export async function updateContractorStatus(issueId, status) {
-  const payload = await issueRequest(`/${encodeURIComponent(issueId)}/status`, {
+  const payload = await apiRequest(`/v1/issues/${encodeURIComponent(issueId)}/status`, {
     method: 'PATCH',
     body: { status },
+    fallbackMessage: 'Unable to update issue status.',
   })
 
   return payload.issue
 }
-

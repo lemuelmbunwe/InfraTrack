@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { AuthRequestError } from '../services/auth'
+import { ApiError } from '../services/apiClient'
 import { fetchIssues } from '../services/issues'
 
 const props = defineProps({
@@ -28,7 +28,7 @@ async function loadIssues() {
     emit('loaded', issues.value)
   } catch (error) {
     issues.value = []
-    if (error instanceof AuthRequestError && error.status === 403) {
+    if (error instanceof ApiError && error.status === 403) {
       errorMessage.value = 'You are not allowed to view these issues.'
     } else {
       errorMessage.value = 'Unable to load issues right now.'

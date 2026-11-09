@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import WorkspaceShell from '../components/WorkspaceShell.vue'
-import { AuthRequestError } from '../services/auth'
+import { ApiError } from '../services/apiClient'
 import {
   fetchIssue,
   fetchIssuePhoto,
@@ -73,7 +73,7 @@ async function loadIssue() {
     fillForm(issue.value)
     photoSource.value = await fetchIssuePhoto(issue.value.photo_url)
   } catch (error) {
-    errorMessage.value = error instanceof AuthRequestError && error.status === 404
+    errorMessage.value = error instanceof ApiError && error.status === 404
       ? 'This issue is unavailable.'
       : 'Unable to load issue details right now.'
   } finally {
@@ -100,7 +100,7 @@ async function handleContractorStatusUpdate() {
     fillForm(updated)
     successNotice.value = `Issue status updated to ${updated.status.replace('_', ' ')}.`
   } catch (error) {
-    contractorStatusError.value = error instanceof AuthRequestError
+    contractorStatusError.value = error instanceof ApiError
       ? error.message
       : 'Unable to update status.'
   } finally {
@@ -141,14 +141,9 @@ async function saveChanges() {
       query: { notice: 'updated' },
     })
   } catch (error) {
-    if (error instanceof AuthRequestError && error.status === 422) {
-      errors.value = Object.fromEntries(
-        Object.entries(error.payload.errors || {}).map(([field, messages]) => [
-          field,
-          Array.isArray(messages) ? messages : [messages],
-        ]),
-      )
-    } else if (error instanceof AuthRequestError && error.status === 403) {
+    if (error instanceof ApiError && error.status === 422) {
+      errors.value = error.errors
+    } else if (error instanceof ApiError && error.status === 403) {
       errorMessage.value = 'You are not allowed to edit this issue.'
     } else {
       errorMessage.value = 'Unable to save issue changes right now.'

@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import CreateUserForm from '../components/CreateUserForm.vue'
 import WorkspaceShell from '../components/WorkspaceShell.vue'
-import { AuthRequestError } from '../services/auth'
+import { ApiError } from '../services/apiClient'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -21,16 +21,11 @@ async function createUser(payload) {
   try {
     createdUser.value = await auth.createUser(payload)
   } catch (error) {
-    if (error instanceof AuthRequestError && error.status === 422) {
-      errors.value = Object.fromEntries(
-        Object.entries(error.payload.errors || {}).map(([field, messages]) => [
-          field,
-          Array.isArray(messages) ? messages : [messages],
-        ]),
-      )
-    } else if (error instanceof AuthRequestError && error.status === 403) {
+    if (error instanceof ApiError && error.status === 422) {
+      errors.value = error.errors
+    } else if (error instanceof ApiError && error.status === 403) {
       errorMessage.value = 'Your account is not allowed to create users.'
-    } else if (error instanceof AuthRequestError && error.status === 401) {
+    } else if (error instanceof ApiError && error.status === 401) {
       errorMessage.value = 'Your sign-in has expired. Sign in again to continue.'
     } else {
       errorMessage.value = 'Unable to create this account right now.'

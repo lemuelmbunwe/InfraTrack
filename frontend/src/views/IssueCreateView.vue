@@ -2,7 +2,7 @@
 import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import WorkspaceShell from '../components/WorkspaceShell.vue'
-import { AuthRequestError } from '../services/auth'
+import { ApiError } from '../services/apiClient'
 import { createIssue, generateYaoundeSampleCoordinates } from '../services/issues'
 import { useAuthStore } from '../stores/auth'
 
@@ -49,13 +49,8 @@ async function submitReport() {
     await createIssue(formData)
     await router.replace({ name: 'inspector-home', query: { notice: 'created' } })
   } catch (error) {
-    if (error instanceof AuthRequestError && error.status === 422) {
-      errors.value = Object.fromEntries(
-        Object.entries(error.payload.errors || {}).map(([field, messages]) => [
-          field,
-          Array.isArray(messages) ? messages : [messages],
-        ]),
-      )
+    if (error instanceof ApiError && error.status === 422) {
+      errors.value = error.errors
     } else {
       errorMessage.value = 'Unable to submit this report right now.'
     }

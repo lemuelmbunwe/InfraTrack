@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { fetchAssignments } from '../services/assignments'
-import { AuthRequestError } from '../services/auth'
+import { ApiError } from '../services/apiClient'
 
 const props = defineProps({
   role: {
@@ -24,7 +24,7 @@ async function loadAssignments() {
     emit('loaded', assignments.value)
   } catch (error) {
     assignments.value = []
-    errorMessage.value = error instanceof AuthRequestError && error.status === 403
+    errorMessage.value = error instanceof ApiError && error.status === 403
       ? 'You are not allowed to view assignments.'
       : 'Unable to load assignments right now.'
   } finally {

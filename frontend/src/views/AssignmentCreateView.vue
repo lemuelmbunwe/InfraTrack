@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import WorkspaceShell from '../components/WorkspaceShell.vue'
-import { AuthRequestError } from '../services/auth'
+import { ApiError } from '../services/apiClient'
 import { createAssignment } from '../services/assignments'
 import { fetchContractors, fetchIssues } from '../services/issues'
 import { useAuthStore } from '../stores/auth'
@@ -66,18 +66,14 @@ async function submitAssignment() {
 
     await router.replace({ name: 'admin-assignment-detail', params: { assignmentId: assignment.id } })
   } catch (error) {
-    if (error instanceof AuthRequestError && error.status === 422) {
-      const responseErrors = error.payload.errors || {}
-      errors.value = Object.fromEntries(
-        Object.entries(responseErrors).map(([field, messages]) => [
-          field,
-          Array.isArray(messages) ? messages : [messages],
-        ]),
-      )
+    if (error instanceof ApiError && error.status === 422) {
+      errors.value = error.errors
       const issueError = Object.entries(errors.value)
         .find(([field]) => field === 'issue_ids' || field.startsWith('issue_ids.'))?.[1]?.[0]
       errorMessage.value = issueError || 'Review the highlighted fields and selected issues.'
-    } else if (error instanceof AuthRequestError && error.status === 403) {
+    } else if (error instanceof ApiError && error.status === 409) {
+      errorMessage.value = error.message
+    } else if (error instanceof ApiError && error.status === 403) {
       errorMessage.value = 'You are not allowed to create assignments.'
     } else {
       errorMessage.value = 'Unable to create this assignment right now.'

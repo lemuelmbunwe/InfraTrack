@@ -101,9 +101,7 @@ class AssignmentController extends Controller
                 ->get();
 
             if ($issues->count() !== count($issueIds)) {
-                throw ValidationException::withMessages([
-                    'issue_ids' => 'One or more selected issues are no longer available.',
-                ]);
+                abort(409, StoreAssignmentRequest::ISSUE_NO_LONGER_AVAILABLE_MESSAGE);
             }
 
             $alreadyAllocatedIds = IssueAssignment::query()
@@ -115,15 +113,11 @@ class AssignmentController extends Controller
 
             foreach ($issues as $issue) {
                 if (in_array((int) $issue->id, $alreadyAllocatedIds, true)) {
-                    throw ValidationException::withMessages([
-                        'issue_ids' => StoreAssignmentRequest::ISSUE_ALREADY_ASSIGNED_MESSAGE,
-                    ]);
+                    abort(409, StoreAssignmentRequest::ISSUE_ALREADY_ASSIGNED_MESSAGE);
                 }
 
                 if ($issue->status !== 'reported') {
-                    throw ValidationException::withMessages([
-                        'issue_ids' => 'Each selected issue must still be reported and have no current allocation.',
-                    ]);
+                    abort(409, StoreAssignmentRequest::ISSUE_NO_LONGER_REPORTED_MESSAGE);
                 }
             }
 

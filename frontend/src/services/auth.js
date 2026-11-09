@@ -1,86 +1,49 @@
-export const apiBaseUrl = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api').replace(/\/$/, '')
-const tokenStorageKey = 'infratrack_access_token'
+import {
+  apiBaseUrl,
+  apiRequest,
+  ApiError,
+  clearAccessToken,
+  getAccessToken,
+  setAccessToken,
+} from './apiClient'
 
-export class AuthRequestError extends Error {
-  constructor(message, status, payload = {}) {
-    super(message)
-    this.name = 'AuthRequestError'
-    this.status = status
-    this.payload = payload
-  }
-}
-
-export function getAccessToken() {
-  return sessionStorage.getItem(tokenStorageKey)
-}
-
-export function clearAccessToken() {
-  sessionStorage.removeItem(tokenStorageKey)
-}
+export { apiBaseUrl, ApiError, clearAccessToken, getAccessToken }
 
 export async function signIn(email, password) {
-  const response = await fetch(`${apiBaseUrl}/v1/auth/login`, {
+  const payload = await apiRequest('/v1/auth/login', {
     method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ email, password }),
+    body: { email, password },
+    authenticated: false,
+    fallbackMessage: 'Unable to sign in.',
   })
-  const payload = await response.json().catch(() => ({}))
-
-  if (!response.ok) {
-    throw new AuthRequestError(payload.message || 'Unable to sign in.', response.status, payload)
-  }
 
   if (!payload.access_token || !payload.user) {
-    throw new Error('The sign-in response was incomplete.')
+    throw new ApiError('The sign-in response was incomplete.', 200, payload)
   }
 
-  sessionStorage.setItem(tokenStorageKey, payload.access_token)
+  setAccessToken(payload.access_token)
 
   return payload.user
 }
 
 export async function fetchCurrentUser() {
-  const token = getAccessToken()
-
-  if (!token) {
+  if (!getAccessToken()) {
     return null
   }
 
-  const response = await fetch(`${apiBaseUrl}/v1/auth/me`, {
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+  const payload = await apiRequest('/v1/auth/me', {
+    fallbackMessage: 'Unable to restore session.',
   })
-  const payload = await response.json().catch(() => ({}))
-
-  if (!response.ok) {
-    throw new AuthRequestError(payload.message || 'Unable to restore session.', response.status, payload)
-  }
 
   return payload.user
 }
 
 export async function createUser(userData) {
-  const token = getAccessToken()
-
-  const response = await fetch(`${apiBaseUrl}/v1/users`, {
+  const payload = await apiRequest('/v1/users', {
     method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(userData),
+    body: userData,
+    fallbackMessage: 'Unable to create account.',
   })
-  const payload = await response.json().catch(() => ({}))
-
-  if (!response.ok) {
-    throw new AuthRequestError(payload.message || 'Unable to create account.', response.status, payload)
-  }
 
   return payload.user
 }

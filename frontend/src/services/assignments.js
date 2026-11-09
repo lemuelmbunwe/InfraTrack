@@ -1,44 +1,37 @@
-import { apiBaseUrl, AuthRequestError, getAccessToken } from './auth'
-
-async function assignmentRequest(path, { method = 'GET', body } = {}) {
-  const token = getAccessToken()
-  const response = await fetch(`${apiBaseUrl}/v1/assignments${path}`, {
-    method,
-    headers: {
-      Accept: 'application/json',
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  const payload = await response.json().catch(() => ({}))
-
-  if (!response.ok) {
-    throw new AuthRequestError(payload.message || 'Unable to load assignment data.', response.status, payload)
-  }
-
-  return payload
-}
+import { apiRequest } from './apiClient'
 
 export async function fetchAssignments() {
-  const payload = await assignmentRequest('')
+  const payload = await apiRequest('/v1/assignments', {
+    fallbackMessage: 'Unable to load assignment data.',
+  })
+
   return payload.assignments
 }
 
 export async function fetchAssignment(assignmentId) {
-  const payload = await assignmentRequest(`/${encodeURIComponent(assignmentId)}`)
+  const payload = await apiRequest(`/v1/assignments/${encodeURIComponent(assignmentId)}`, {
+    fallbackMessage: 'Unable to load assignment data.',
+  })
+
   return payload.assignment
 }
 
 export async function createAssignment(data) {
-  const payload = await assignmentRequest('', { method: 'POST', body: data })
+  const payload = await apiRequest('/v1/assignments', {
+    method: 'POST',
+    body: data,
+    fallbackMessage: 'Unable to create assignment.',
+  })
+
   return payload.assignment
 }
 
 export async function updateAssignment(assignmentId, changes) {
-  const payload = await assignmentRequest(`/${encodeURIComponent(assignmentId)}`, {
+  const payload = await apiRequest(`/v1/assignments/${encodeURIComponent(assignmentId)}`, {
     method: 'PATCH',
     body: changes,
+    fallbackMessage: 'Unable to save assignment details.',
   })
+
   return payload.assignment
 }

@@ -1,12 +1,12 @@
 import { computed, ref } from 'vue'
 import {
-  AuthRequestError,
   clearAccessToken,
   createUser as requestCreateUser,
   fetchCurrentUser,
   getAccessToken,
   signIn as requestSignIn,
 } from '../services/auth'
+import { ApiError } from '../services/apiClient'
 
 const currentUser = ref(null)
 const sessionError = ref('')
@@ -30,10 +30,10 @@ export function useAuthStore() {
           currentUser.value = await fetchCurrentUser()
           return currentUser.value !== null
         } catch (error) {
-          if (error instanceof AuthRequestError && error.status === 401) {
+          if (error instanceof ApiError && error.status === 401) {
             clearAccessToken()
             sessionError.value = 'Your sign-in has expired. Please sign in again.'
-          } else if (error instanceof AuthRequestError && error.status === 403) {
+          } else if (error instanceof ApiError && error.status === 403) {
             clearAccessToken()
             sessionError.value = 'This account is inactive.'
           } else {

@@ -12,6 +12,10 @@ class StoreAssignmentRequest extends FormRequest
 {
     public const ISSUE_ALREADY_ASSIGNED_MESSAGE = 'This issue has already been assigned. Refresh your browser and check its status again.';
 
+    public const ISSUE_NO_LONGER_REPORTED_MESSAGE = 'One or more selected issues are no longer reported. Refresh your browser and check their status again.';
+
+    public const ISSUE_NO_LONGER_AVAILABLE_MESSAGE = 'One or more selected issues are no longer available. Refresh your browser and try again.';
+
     public function authorize(): bool
     {
         $user = $this->user();
