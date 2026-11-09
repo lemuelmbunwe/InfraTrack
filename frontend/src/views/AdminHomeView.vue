@@ -8,12 +8,12 @@ import WorkspaceShell from '../components/WorkspaceShell.vue'
 const auth = useAuthStore()
 const issueMetrics = ref(null)
 
-function updateIssueMetrics(issues) {
+function updateIssueMetrics(summary) {
   issueMetrics.value = {
-    total: issues.length,
-    reported: issues.filter((issue) => issue.status === 'reported').length,
-    inProgress: issues.filter((issue) => issue.status === 'in_progress').length,
-    highSeverity: issues.filter((issue) => issue.severity === 'high').length,
+    total: summary.total,
+    reported: summary.reported,
+    inProgress: summary.in_progress,
+    highSeverity: summary.high_severity,
   }
 }
 </script>

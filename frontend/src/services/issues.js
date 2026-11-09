@@ -12,11 +12,33 @@ export function generateYaoundeSampleCoordinates() {
 }
 
 export async function fetchIssues() {
-  const payload = await apiRequest('/v1/issues', {
+  const issues = []
+  let page = 1
+  let lastPage = 1
+
+  do {
+    const result = await fetchIssuePage({ status: 'reported', page, perPage: 50 })
+    issues.push(...result.issues)
+    lastPage = result.pagination.last_page
+    page += 1
+  } while (page <= lastPage)
+
+  return issues
+}
+
+export async function fetchIssuePage({ status = null, page = 1, perPage = 15 } = {}) {
+  const params = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (status) params.set('status', status)
+
+  const payload = await apiRequest(`/v1/issues?${params.toString()}`, {
     fallbackMessage: 'Unable to load issue data.',
   })
 
-  return payload.issues
+  return {
+    issues: payload.issues,
+    pagination: payload.pagination,
+    summary: payload.summary,
+  }
 }
 
 export async function fetchIssue(issueId) {

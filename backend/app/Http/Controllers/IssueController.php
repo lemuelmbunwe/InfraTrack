@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -26,11 +27,16 @@ class IssueController extends Controller
     {
         Gate::authorize('viewAny', Issue::class);
 
+        $filters = $request->validate([
+            'status' => ['nullable', Rule::in(['reported', 'assigned', 'in_progress', 'resolved'])],
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:50'],
+        ]);
+
         $role = $request->user()->role?->name;
         $userId = $request->user()->id;
 
-        $issues = Issue::query()
-            ->with($this->issueRelations())
+        $visibleIssues = Issue::query()
             ->when(
                 $role === 'inspector',
                 fn ($query) => $query->where('reported_by', $userId),
@@ -41,13 +47,51 @@ class IssueController extends Controller
                     'activeAssignment',
                     fn ($q) => $q->where('contractor_id', $userId),
                 ),
+            );
+
+        $summary = (clone $visibleIssues)
+            ->selectRaw(
+                'COUNT(*) AS total, '
+                .'COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) AS reported, '
+                .'COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) AS assigned, '
+                .'COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) AS in_progress, '
+                .'COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) AS resolved, '
+                .'COALESCE(SUM(CASE WHEN severity = ? THEN 1 ELSE 0 END), 0) AS high_severity',
+                ['reported', 'assigned', 'in_progress', 'resolved', 'high'],
             )
-            ->orderByDesc('reported_at')
-            ->orderByDesc('id')
-            ->get();
+            ->first();
+
+        $issuesQuery = (clone $visibleIssues)
+            ->with($this->issueRelations())
+            ->when(isset($filters['status']), fn ($query) => $query->where('status', $filters['status']));
+
+        if ($role === 'admin') {
+            $issuesQuery
+                ->orderByRaw("CASE status WHEN 'reported' THEN 0 WHEN 'assigned' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'resolved' THEN 3 ELSE 4 END")
+                ->orderByDesc('reported_at')
+                ->orderByDesc('id');
+        } else {
+            $issuesQuery->orderByDesc('reported_at')->orderByDesc('id');
+        }
+
+        $issues = $issuesQuery->paginate($filters['per_page'] ?? 15);
 
         return response()->json([
-            'issues' => IssueResource::collection($issues)->resolve($request),
+            'issues' => IssueResource::collection($issues->items())->resolve($request),
+            'pagination' => [
+                'current_page' => $issues->currentPage(),
+                'per_page' => $issues->perPage(),
+                'total' => $issues->total(),
+                'last_page' => $issues->lastPage(),
+            ],
+            'summary' => [
+                'total' => (int) $summary->total,
+                'reported' => (int) $summary->reported,
+                'assigned' => (int) $summary->assigned,
+                'in_progress' => (int) $summary->in_progress,
+                'resolved' => (int) $summary->resolved,
+                'high_severity' => (int) $summary->high_severity,
+            ],
         ]);
     }
 

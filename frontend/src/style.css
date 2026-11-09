@@ -1158,6 +1158,66 @@ p {
   font-weight: 800;
 }
 
+.issue-status-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+
+.issue-status-filters button,
+.issue-pagination button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.issue-status-filters button[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fffefa;
+}
+
+.issue-status-filters button span {
+  margin-left: 4px;
+  opacity: 0.72;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+}
+
+.issue-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.issue-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.issue-pagination button {
+  min-height: 30px;
+  padding: 0 9px;
+}
+
+.issue-status-filters button:disabled,
+.issue-pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .issue-empty-state {
   margin-top: 14px;
   padding: 24px 0;
@@ -1659,6 +1719,11 @@ p {
   .issue-detail-toolbar,
   .issue-queue-header {
     align-items: flex-start;
+  }
+
+  .issue-pagination {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .issue-detail-tags {
