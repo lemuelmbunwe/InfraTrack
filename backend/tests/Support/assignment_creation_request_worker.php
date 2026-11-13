@@ -2,6 +2,7 @@
 
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 $backendPath = dirname(__DIR__, 2);
 
@@ -9,6 +10,12 @@ require $backendPath.'/vendor/autoload.php';
 
 $application = require $backendPath.'/bootstrap/app.php';
 $input = json_decode(stream_get_contents(STDIN), true, flags: JSON_THROW_ON_ERROR);
+$kernel = $application->make(Kernel::class);
+$kernel->bootstrap();
+DB::connection()->selectOne(
+    'SELECT set_config(?, ?, false)',
+    ['application_name', $input['application_name']],
+);
 $request = Request::create(
     '/api/v1/assignments',
     'POST',
@@ -22,7 +29,6 @@ $request = Request::create(
     ],
     json_encode($input['payload'], JSON_THROW_ON_ERROR),
 );
-$kernel = $application->make(Kernel::class);
 $response = $kernel->handle($request);
 
 echo json_encode([

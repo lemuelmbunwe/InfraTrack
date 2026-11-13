@@ -34,24 +34,43 @@ class AssignmentCreationConcurrencyTest extends TestCase
         $connection = DB::connection();
         $firstRequest = null;
         $secondRequest = null;
+        $firstApplicationName = 'assignment-winner-'.$winningContractor->id;
+        $secondApplicationName = 'assignment-racer-'.$competingContractor->id;
 
         $connection->beginTransaction();
 
         try {
-            User::query()
-                ->whereKey($winningContractor->id)
-                ->lockForUpdate()
-                ->firstOrFail();
-            Issue::query()
-                ->whereKey($issue->id)
-                ->lockForUpdate()
-                ->firstOrFail();
+            // Hold writes to assignments so the first request pauses after it locks the issue.
+            $connection->statement('LOCK TABLE assignments IN SHARE MODE');
+            $testConnectionPid = (int) $connection->selectOne('SELECT pg_backend_pid() AS pid')->pid;
 
-            $firstRequest = $this->startAssignmentRequest($token, $winningContractor, $issue);
-            $this->waitUntilRequestIsBlockedOnContractorLock($connection, $firstRequest);
+            $firstRequest = $this->startAssignmentRequest(
+                $token,
+                $winningContractor,
+                $issue,
+                $firstApplicationName,
+            );
+            $firstRequestPid = $this->waitUntilWorkerIsBlockedBy(
+                $connection,
+                $firstApplicationName,
+                $testConnectionPid,
+                $firstRequest,
+                'The first request did not reach the assignment insert while the test held its table lock.',
+            );
 
-            $secondRequest = $this->startAssignmentRequest($token, $competingContractor, $issue);
-            $this->waitUntilRequestIsBlockedOnIssueLock($connection, $secondRequest);
+            $secondRequest = $this->startAssignmentRequest(
+                $token,
+                $competingContractor,
+                $issue,
+                $secondApplicationName,
+            );
+            $this->waitUntilWorkerIsBlockedBy(
+                $connection,
+                $secondApplicationName,
+                $firstRequestPid,
+                $secondRequest,
+                'The competing request did not wait on the issue lock held by the first request.',
+            );
 
             $connection->commit();
 
@@ -60,12 +79,9 @@ class AssignmentCreationConcurrencyTest extends TestCase
             $statusCodes = [$firstResponse['status'], $secondResponse['status']];
             sort($statusCodes);
 
-            $this->assertSame([201, 422], $statusCodes);
-            $conflictResponse = $firstResponse['status'] === 422 ? $firstResponse : $secondResponse;
-            $this->assertSame(
-                StoreAssignmentRequest::ISSUE_ALREADY_ASSIGNED_MESSAGE,
-                $conflictResponse['body']['errors']['issue_ids'][0] ?? null,
-            );
+            $this->assertSame([201, 409], $statusCodes);
+            $conflictResponse = $firstResponse['status'] === 409 ? $firstResponse : $secondResponse;
+            $this->assertSame(StoreAssignmentRequest::ISSUE_ALREADY_ASSIGNED_MESSAGE, $conflictResponse['body']['message'] ?? null);
             $this->assertDatabaseCount('assignments', 1);
             $this->assertDatabaseCount('issue_assignments', 1);
             $currentAllocations = DB::table('issue_assignments')
@@ -92,8 +108,12 @@ class AssignmentCreationConcurrencyTest extends TestCase
         }
     }
 
-    private function startAssignmentRequest(string $token, User $contractor, Issue $issue): Process
-    {
+    private function startAssignmentRequest(
+        string $token,
+        User $contractor,
+        Issue $issue,
+        string $applicationName,
+    ): Process {
         $request = new Process(
             [PHP_BINARY, base_path('tests/Support/assignment_creation_request_worker.php')],
             base_path(),
@@ -110,6 +130,7 @@ class AssignmentCreationConcurrencyTest extends TestCase
         );
         $request->setInput(json_encode([
             'token' => $token,
+            'application_name' => $applicationName,
             'payload' => [
                 'title' => 'Assignment for contractor '.$contractor->id,
                 'contractor_id' => $contractor->id,
@@ -122,78 +143,52 @@ class AssignmentCreationConcurrencyTest extends TestCase
         return $request;
     }
 
-    private function waitUntilRequestIsBlockedOnIssueLock(Connection $connection, Process $request): void
-    {
+    private function waitUntilWorkerIsBlockedBy(
+        Connection $connection,
+        string $applicationName,
+        int $blockerPid,
+        Process $request,
+        string $failureMessage,
+    ): int {
         $deadline = microtime(true) + 10;
 
         do {
-            $waitingRequest = $connection->selectOne(<<<'SQL'
-                select pid, query
-                from pg_stat_activity
-                where datname = current_database()
-                  and pid <> pg_backend_pid()
-                  and pg_backend_pid() = any(pg_blocking_pids(pid))
-                  and query ilike '%issues%'
-                  and query ilike '%for update%'
-                limit 1
-                SQL);
+            $connection->selectOne('SELECT pg_stat_clear_snapshot()');
+            $waitingRequest = $connection->selectOne(
+                <<<'SQL'
+                    select pid
+                    from pg_stat_activity
+                    where datname = current_database()
+                      and application_name = ?
+                      and wait_event_type = 'Lock'
+                      and ? = any(pg_blocking_pids(pid))
+                    limit 1
+                    SQL,
+                [$applicationName, $blockerPid],
+            );
 
             if ($waitingRequest !== null) {
-                return;
+                return (int) $waitingRequest->pid;
             }
 
             if (! $request->isRunning()) {
-                $this->fail('The competing request finished before blocking on the issue lock: '.$request->getOutput());
+                $this->fail($failureMessage.' Worker output: '.$request->getOutput().'; worker error: '.$request->getErrorOutput());
             }
 
             usleep(50_000);
         } while (microtime(true) < $deadline);
 
-        $waitingQueries = $connection->select(<<<'SQL'
-            select pid, state, wait_event_type, wait_event, query
-            from pg_stat_activity
-            where datname = current_database()
-              and pid <> pg_backend_pid()
-            SQL);
-        $this->fail('PostgreSQL did not report the competing request waiting on the issue row lock. Activity: '
-            .json_encode($waitingQueries).'; worker output: '.$request->getOutput().'; worker error: '.$request->getErrorOutput());
-    }
-
-    private function waitUntilRequestIsBlockedOnContractorLock(Connection $connection, Process $request): void
-    {
-        $deadline = microtime(true) + 10;
-
-        do {
-            $waitingRequest = $connection->selectOne(<<<'SQL'
-                select pid, query
+        $activity = $connection->select(
+            <<<'SQL'
+                select pid, application_name, state, wait_event_type, wait_event, query
                 from pg_stat_activity
                 where datname = current_database()
                   and pid <> pg_backend_pid()
-                  and pg_backend_pid() = any(pg_blocking_pids(pid))
-                  and query ilike '%users%'
-                  and query ilike '%for update%'
-                limit 1
-                SQL);
-
-            if ($waitingRequest !== null) {
-                return;
-            }
-
-            if (! $request->isRunning()) {
-                $this->fail('The first request finished before blocking on the contractor lock: '.$request->getOutput());
-            }
-
-            usleep(50_000);
-        } while (microtime(true) < $deadline);
-
-        $waitingQueries = $connection->select(<<<'SQL'
-            select pid, state, wait_event_type, wait_event, query
-            from pg_stat_activity
-            where datname = current_database()
-              and pid <> pg_backend_pid()
-            SQL);
-        $this->fail('PostgreSQL did not report the first request waiting on the contractor row lock. Activity: '
-            .json_encode($waitingQueries).'; worker output: '.$request->getOutput().'; worker error: '.$request->getErrorOutput());
+                SQL,
+        );
+        $this->fail($failureMessage.' Timed out waiting for the worker lock state; worker output: '
+            .$request->getOutput().'; worker error: '.$request->getErrorOutput().'; worker pid: '
+            .$request->getPid().'; worker status: '.json_encode($request->getStatus()).'; activity: '.json_encode($activity));
     }
 
     /** @return array{status: int, body: array<string, mixed>} */
